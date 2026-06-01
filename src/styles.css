@@ -330,7 +330,7 @@
 
   .app-shell {
     @apply grid min-h-screen bg-background text-foreground;
-    grid-template-columns: 280px minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .sidebar {
@@ -498,7 +498,7 @@
   }
 
   .page-stack {
-    @apply grid gap-5;
+    @apply min-w-0 grid gap-5;
   }
 
   .page-title-row {
@@ -539,7 +539,7 @@
   }
 
   .content-panel {
-    @apply p-5 sm:p-8;
+    @apply min-w-0 p-5 sm:p-8;
   }
 
   .content-panel h2 {
@@ -1411,6 +1411,107 @@
 
   dd {
     @apply mt-1 ml-0;
+  }
+}
+
+@media (min-width: 1024px) {
+  .app-shell {
+    grid-template-columns: 280px minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 639px) {
+  .topbar {
+    @apply min-h-[64px] gap-2 px-3;
+  }
+
+  .route-heading {
+    @apply min-w-0;
+  }
+
+  .route-heading span {
+    @apply text-[0.62rem];
+  }
+
+  .route-heading strong {
+    @apply truncate text-base;
+  }
+
+  .topbar-actions {
+    @apply gap-1;
+  }
+
+  .icon-button {
+    @apply size-10 min-h-10;
+  }
+
+  .page-shell {
+    @apply px-3 py-4 pb-24;
+  }
+
+  .page-stack,
+  .dashboard-premium {
+    @apply gap-4;
+  }
+
+  .page-title-row {
+    @apply gap-3;
+  }
+
+  .page-title-row h1 {
+    @apply text-xl;
+  }
+
+  .content-panel,
+  .sale-client-panel,
+  .sale-loan-panel,
+  .compact-client-form {
+    @apply p-4;
+  }
+
+  .metric-card {
+    @apply min-h-[108px] gap-2 p-4;
+  }
+
+  .metric-card strong {
+    @apply text-2xl;
+  }
+
+  .button-row {
+    @apply gap-2;
+  }
+
+  .button-row:not(.compact-actions) > button,
+  .button-row:not(.compact-actions) > a {
+    @apply max-w-full;
+  }
+
+  .desktop-table-wrap {
+    @apply -mx-1 overflow-x-auto p-3;
+  }
+
+  .desktop-table-wrap table {
+    @apply min-w-[620px];
+  }
+
+  .mobile-data-card {
+    @apply p-4;
+  }
+
+  .mini-totals {
+    @apply grid-cols-1;
+  }
+
+  .notification-panel {
+    @apply right-2 top-[58px] w-[calc(100vw-16px)] p-3;
+  }
+
+  .mobile-bottom-nav {
+    @apply px-1 py-1.5;
+  }
+
+  .mobile-nav-item {
+    @apply min-h-[54px] text-[0.62rem];
   }
 }
 
