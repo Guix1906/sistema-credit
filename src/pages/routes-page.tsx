@@ -1,3 +1,4 @@
+import { Archive, Eye, Pencil, RotateCcw } from 'lucide-react'
 import { FormEvent, useState } from 'react'
 import { Link } from 'react-router-dom'
 
@@ -68,11 +69,17 @@ export function RoutesPage() {
       const { error } = await supabase.from('routes').update(next).eq('id', route.id)
       if (error) throw error
       await registerRouteAudit(profile, 'routes', route.id, 'update', { is_active: route.is_active }, next)
-      setMessage(route.is_active ? 'Rota desativada.' : 'Rota ativada.')
+      setMessage(route.is_active ? 'Rota arquivada. O historico financeiro foi preservado.' : 'Rota reativada.')
       routes.reload()
     } catch (error) {
       setMessage(getOperationErrorMessage(error, 'alterar a rota'))
     }
+  }
+
+  function startEditing(route: RouteRecord) {
+    setEditing(route)
+    setMessage('')
+    window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
   return (
@@ -98,10 +105,30 @@ export function RoutesPage() {
           {editing ? <button className="secondary-button" onClick={() => setEditing(null)} type="button">Cancelar</button> : null}
         </div>
       </form>
+      <div className="mobile-card-list">
+        {routes.data.map((route) => (
+          <article className="mobile-data-card" key={route.id}>
+            <div>
+              <strong>{route.name}</strong>
+              <small>{[route.neighborhood, route.city].filter(Boolean).join(', ') || 'Local nao informado'}</small>
+            </div>
+            <div className="mini-totals">
+              <b>Afiliado: {route.collector_id ? affiliateNames.get(route.collector_id) ?? '-' : '-'}</b>
+              <b>Dias: {formatCollectionDays(route.collection_days)}</b>
+              <b>{route.is_active ? 'Ativa' : 'Arquivada'}</b>
+            </div>
+            <div className="button-row">
+              <Link className="button-link" to={`/rotas/${route.id}`}><Eye size={16} />Detalhes</Link>
+              <button className="secondary-button" onClick={() => startEditing(route)} type="button"><Pencil size={16} />Editar</button>
+              <button className="secondary-button" onClick={() => toggleRoute(route)} type="button">{route.is_active ? <Archive size={16} /> : <RotateCcw size={16} />}{route.is_active ? 'Arquivar' : 'Reativar'}</button>
+            </div>
+          </article>
+        ))}
+      </div>
       <section className="content-panel desktop-table-wrap">
         <table>
           <thead><tr><th>Nome</th><th>Local</th><th>Afiliado principal</th><th>Dias</th><th>Meta</th><th>Status</th><th>Acoes</th></tr></thead>
-          <tbody>{routes.data.map((route) => <tr key={route.id}><td><Link to={`/rotas/${route.id}`}>{route.name}</Link></td><td>{[route.neighborhood, route.city].filter(Boolean).join(', ') || '-'}</td><td>{route.collector_id ? affiliateNames.get(route.collector_id) ?? '-' : '-'}</td><td>{formatCollectionDays(route.collection_days)}</td><td>{formatCurrency(route.goal_amount)}</td><td>{route.is_active ? 'Ativa' : 'Inativa'}</td><td><div className="button-row"><button className="secondary-button" onClick={() => setEditing(route)} type="button">Editar</button><button className="secondary-button" onClick={() => toggleRoute(route)} type="button">{route.is_active ? 'Desativar' : 'Ativar'}</button></div></td></tr>)}</tbody>
+          <tbody>{routes.data.map((route) => <tr key={route.id}><td><Link to={`/rotas/${route.id}`}>{route.name}</Link></td><td>{[route.neighborhood, route.city].filter(Boolean).join(', ') || '-'}</td><td>{route.collector_id ? affiliateNames.get(route.collector_id) ?? '-' : '-'}</td><td>{formatCollectionDays(route.collection_days)}</td><td>{formatCurrency(route.goal_amount)}</td><td>{route.is_active ? 'Ativa' : 'Arquivada'}</td><td><div className="button-row compact-actions"><button className="secondary-button" onClick={() => startEditing(route)} type="button"><Pencil size={15} />Editar</button><button className="secondary-button" onClick={() => toggleRoute(route)} type="button">{route.is_active ? <Archive size={15} /> : <RotateCcw size={15} />}{route.is_active ? 'Arquivar' : 'Reativar'}</button></div></td></tr>)}</tbody>
         </table>
       </section>
     </section>
