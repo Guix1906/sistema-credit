@@ -1,4 +1,4 @@
-import { MessageCircle, Plus, UserRoundPlus, X } from 'lucide-react'
+import { MessageCircle, Pencil, Plus, Trash2, UserRoundPlus, X } from 'lucide-react'
 import { FormEvent, useCallback, useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 
@@ -8,6 +8,7 @@ import { useAsyncData } from '../hooks/use-async-data'
 import { getOperationErrorMessage } from '../lib/errors'
 import { formatCurrency, nullableText } from '../lib/formatters'
 import { maskDocument, maskPhone } from '../lib/masks'
+import { supabase } from '../lib/supabase'
 import { createClient, getSelectOptions, listClientsWithTotals } from '../services/finance-service'
 
 export function ClientsPage() {
@@ -54,6 +55,18 @@ export function ClientsPage() {
       reload()
     } catch (error) {
       setMessage(getOperationErrorMessage(error, 'cadastrar o cliente'))
+    }
+  }
+
+  async function deleteClient(id: string, name: string) {
+    if (!window.confirm(`Excluir definitivamente o cliente "${name}"? Clientes com historico financeiro devem ser desativados.`)) return
+    try {
+      const { error: deleteError } = await supabase.rpc('delete_empty_client', { p_client_id: id })
+      if (deleteError) throw deleteError
+      setMessage('Cliente excluido definitivamente.')
+      reload()
+    } catch (deleteError) {
+      setMessage(getOperationErrorMessage(deleteError, 'excluir o cliente'))
     }
   }
 
@@ -115,6 +128,8 @@ export function ClientsPage() {
             </div>
             <div className="button-row">
               <Link className="button-link" to={`/clientes/${client.id}`}>Detalhes</Link>
+              <Link className="button-link secondary-button" to={`/clientes/${client.id}?edit=1`}><Pencil size={16} />Editar</Link>
+              <button className="destructive-button" onClick={() => deleteClient(client.id, client.name)} type="button"><Trash2 size={16} />Excluir</button>
               {client.whatsapp ? <a className="button-link" href={`https://wa.me/${client.whatsapp}`} rel="noreferrer" target="_blank"><MessageCircle size={17} />WhatsApp</a> : null}
             </div>
           </article>
@@ -123,12 +138,12 @@ export function ClientsPage() {
 
       <section className="content-panel desktop-table-wrap">
         <table>
-          <thead><tr><th>Nome</th><th>Telefone</th><th>Rota</th><th>Afiliado</th><th>Total a pagar</th><th>Total pago</th><th>Aberto</th><th>Status</th></tr></thead>
+          <thead><tr><th>Nome</th><th>Telefone</th><th>Rota</th><th>Afiliado</th><th>Total a pagar</th><th>Total pago</th><th>Aberto</th><th>Status</th><th>Acoes</th></tr></thead>
           <tbody>
             {clients.map((client) => (
               <tr key={client.id}>
                 <td><Link to={`/clientes/${client.id}`}>{client.name}</Link></td><td>{client.phone ?? client.whatsapp ?? '-'}</td><td>{client.route_name ?? '-'}</td><td>{client.affiliate_name ?? '-'}</td>
-                <td>{formatCurrency(client.total_to_pay)}</td><td>{formatCurrency(client.total_paid)}</td><td>{formatCurrency(client.total_open)}</td><td>{client.status}</td>
+                <td>{formatCurrency(client.total_to_pay)}</td><td>{formatCurrency(client.total_paid)}</td><td>{formatCurrency(client.total_open)}</td><td>{client.status}</td><td><div className="button-row compact-actions"><Link className="button-link secondary-button" to={`/clientes/${client.id}?edit=1`}><Pencil size={15} />Editar</Link><button className="destructive-button" onClick={() => deleteClient(client.id, client.name)} type="button"><Trash2 size={15} />Excluir</button></div></td>
               </tr>
             ))}
           </tbody>

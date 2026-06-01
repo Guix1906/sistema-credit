@@ -1,6 +1,6 @@
-import { MessageCircle, Plus } from 'lucide-react'
+import { MessageCircle, Plus, Trash2 } from 'lucide-react'
 import { FormEvent, useCallback, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 
 import { MaskedInput } from '../components/masked-input'
 import { useAuth } from '../contexts/auth-context'
@@ -25,7 +25,9 @@ type ClientDocument = {
 export function ClientDetailPage() {
   const { profile } = useAuth()
   const { id } = useParams()
-  const [editing, setEditing] = useState(false)
+  const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const [editing, setEditing] = useState(() => searchParams.get('edit') === '1')
   const [message, setMessage] = useState('')
   const loader = useCallback(async () => {
     if (!id) throw new Error('Cliente nao informado.')
@@ -106,6 +108,13 @@ export function ClientDetailPage() {
     }
   }
 
+  async function deleteClient() {
+    if (!data.client || !window.confirm(`Excluir definitivamente o cliente "${data.client.name}"? Clientes com historico financeiro devem ser desativados.`)) return
+    const { error: deleteError } = await supabase.rpc('delete_empty_client', { p_client_id: data.client.id })
+    if (deleteError) setMessage(deleteError.message)
+    else navigate('/clientes')
+  }
+
   return (
     <section className="page-stack">
       <div className="page-title-row">
@@ -118,6 +127,7 @@ export function ClientDetailPage() {
           <Link className="button-link" to="/vendas"><Plus size={17} />Nova venda</Link>
           <button className="secondary-button" onClick={() => setEditing((value) => !value)} type="button">Editar</button>
           <button className="secondary-button" onClick={toggleClient} type="button">{data.client?.is_active ? 'Desativar' : 'Ativar'}</button>
+          <button className="destructive-button" onClick={deleteClient} type="button"><Trash2 size={17} />Excluir</button>
         </div>
       </div>
 
