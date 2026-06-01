@@ -1,4 +1,4 @@
-import { Pencil, Plus, Save, UserCheck, UserX, X } from 'lucide-react'
+import { Pencil, Plus, Save, Trash2, UserCheck, UserX, X } from 'lucide-react'
 import { FormEvent, useState } from 'react'
 
 import { MaskedInput } from '../components/masked-input'
@@ -104,6 +104,28 @@ export function TeamPage() {
     }
   }
 
+  async function deleteMember(member: Profile) {
+    if (!profile || member.id === profile.id) {
+      setMessage('Voce nao pode excluir o usuario conectado.')
+      return
+    }
+    if (!window.confirm(`Excluir definitivamente o usuario "${member.full_name}"? Esta acao nao pode ser desfeita.`)) return
+    setSavingId(member.id)
+    try {
+      const { error } = await supabase.functions.invoke('delete-team-user', { body: { userId: member.id } })
+      if (error) throw error
+      await insertAuditLog(profile, 'profiles', member.id, 'delete', member, null)
+      if (editing?.id === member.id) setEditing(null)
+      setMessage('Usuario excluido definitivamente.')
+      members.reload()
+      routes.reload()
+    } catch (error) {
+      setMessage(getOperationErrorMessage(error, 'excluir o usuario'))
+    } finally {
+      setSavingId(null)
+    }
+  }
+
   function startEditing(member: Profile) {
     setCreating(false)
     setMessage('')
@@ -163,10 +185,23 @@ export function TeamPage() {
       {members.error ? <p className="form-message">{members.error}</p> : null}
       {members.loading ? <div className="skeleton-card" /> : null}
 
+      <div className="mobile-card-list">
+        {members.data.map((member) => (
+          <article className="mobile-data-card" key={member.id}>
+            <div><strong>{member.full_name}</strong><small>{member.email}</small></div>
+            <div className="mini-totals"><b>{member.role}</b><b>{member.commission_rate ?? 0}% comissao</b><b>{member.is_active ? 'Ativo' : 'Inativo'}</b></div>
+            <div className="button-row">
+              <button className="secondary-button" onClick={() => startEditing(member)} type="button"><Pencil size={15} />Editar</button>
+              <button className="secondary-button" disabled={savingId === member.id} onClick={() => toggleMember(member)} type="button">{member.is_active ? <UserX size={15} /> : <UserCheck size={15} />}{member.is_active ? 'Desativar' : 'Ativar'}</button>
+              {member.id !== profile?.id ? <button className="destructive-button" disabled={savingId === member.id} onClick={() => deleteMember(member)} type="button"><Trash2 size={15} />Excluir</button> : null}
+            </div>
+          </article>
+        ))}
+      </div>
       <section className="content-panel desktop-table-wrap">
         <table>
           <thead><tr><th>Nome</th><th>E-mail</th><th>Papel</th><th>Telefone</th><th>Comissao</th><th>Status</th><th>Acoes</th></tr></thead>
-          <tbody>{members.data.map((member) => <tr key={member.id}><td>{member.full_name}</td><td>{member.email}</td><td>{member.role}</td><td>{member.phone ?? '-'}</td><td>{member.commission_rate ?? 0}%</td><td>{member.is_active ? 'Ativo' : 'Inativo'}</td><td><div className="button-row compact-actions"><button className="secondary-button" onClick={() => startEditing(member)} type="button"><Pencil size={15} />Editar</button><button className="secondary-button" disabled={savingId === member.id} onClick={() => toggleMember(member)} type="button">{member.is_active ? <UserX size={15} /> : <UserCheck size={15} />}{member.is_active ? 'Desativar' : 'Ativar'}</button></div></td></tr>)}</tbody>
+          <tbody>{members.data.map((member) => <tr key={member.id}><td>{member.full_name}</td><td>{member.email}</td><td>{member.role}</td><td>{member.phone ?? '-'}</td><td>{member.commission_rate ?? 0}%</td><td>{member.is_active ? 'Ativo' : 'Inativo'}</td><td><div className="button-row compact-actions"><button className="secondary-button" onClick={() => startEditing(member)} type="button"><Pencil size={15} />Editar</button><button className="secondary-button" disabled={savingId === member.id} onClick={() => toggleMember(member)} type="button">{member.is_active ? <UserX size={15} /> : <UserCheck size={15} />}{member.is_active ? 'Desativar' : 'Ativar'}</button>{member.id !== profile?.id ? <button className="destructive-button" disabled={savingId === member.id} onClick={() => deleteMember(member)} type="button"><Trash2 size={15} />Excluir</button> : null}</div></td></tr>)}</tbody>
         </table>
       </section>
     </section>
