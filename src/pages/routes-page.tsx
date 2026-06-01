@@ -1,4 +1,4 @@
-import { Archive, Eye, Pencil, RotateCcw } from 'lucide-react'
+import { Archive, Eye, Pencil, RotateCcw, Trash2 } from 'lucide-react'
 import { FormEvent, useState } from 'react'
 import { Link } from 'react-router-dom'
 
@@ -76,6 +76,37 @@ export function RoutesPage() {
     }
   }
 
+  async function deleteRoute(route: RouteRecord) {
+    if (!profile) {
+      setMessage('Sua sessao expirou. Entre novamente para excluir a rota.')
+      return
+    }
+    if (!window.confirm(`Excluir definitivamente a rota "${route.name}"? Esta acao nao pode ser desfeita.`)) return
+    try {
+      const [clients, loans, cashboxes, expenses, members] = await Promise.all([
+        supabase.from('clients').select('id').eq('route_id', route.id).limit(1),
+        supabase.from('loans').select('id').eq('route_id', route.id).limit(1),
+        supabase.from('cashboxes').select('id').eq('route_id', route.id).limit(1),
+        supabase.from('expenses').select('id').eq('route_id', route.id).limit(1),
+        supabase.from('profiles').select('id').eq('route_id', route.id).limit(1),
+      ])
+      const lookupError = clients.error ?? loans.error ?? cashboxes.error ?? expenses.error ?? members.error
+      if (lookupError) throw lookupError
+      if ([clients, loans, cashboxes, expenses, members].some((result) => result.data?.length)) {
+        setMessage('Esta rota possui vinculos. Use Arquivar para preservar clientes e historico financeiro.')
+        return
+      }
+      const { error } = await supabase.from('routes').delete().eq('id', route.id)
+      if (error) throw error
+      await registerRouteAudit(profile, 'routes', route.id, 'delete', route, null)
+      if (editing?.id === route.id) setEditing(null)
+      setMessage('Rota excluida definitivamente.')
+      routes.reload()
+    } catch (error) {
+      setMessage(getOperationErrorMessage(error, 'excluir a rota'))
+    }
+  }
+
   function startEditing(route: RouteRecord) {
     setEditing(route)
     setMessage('')
@@ -121,6 +152,7 @@ export function RoutesPage() {
               <Link className="button-link" to={`/rotas/${route.id}`}><Eye size={16} />Detalhes</Link>
               <button className="secondary-button" onClick={() => startEditing(route)} type="button"><Pencil size={16} />Editar</button>
               <button className="secondary-button" onClick={() => toggleRoute(route)} type="button">{route.is_active ? <Archive size={16} /> : <RotateCcw size={16} />}{route.is_active ? 'Arquivar' : 'Reativar'}</button>
+              <button className="destructive-button" onClick={() => deleteRoute(route)} type="button"><Trash2 size={16} />Excluir</button>
             </div>
           </article>
         ))}
@@ -128,7 +160,7 @@ export function RoutesPage() {
       <section className="content-panel desktop-table-wrap">
         <table>
           <thead><tr><th>Nome</th><th>Local</th><th>Afiliado principal</th><th>Dias</th><th>Meta</th><th>Status</th><th>Acoes</th></tr></thead>
-          <tbody>{routes.data.map((route) => <tr key={route.id}><td><Link to={`/rotas/${route.id}`}>{route.name}</Link></td><td>{[route.neighborhood, route.city].filter(Boolean).join(', ') || '-'}</td><td>{route.collector_id ? affiliateNames.get(route.collector_id) ?? '-' : '-'}</td><td>{formatCollectionDays(route.collection_days)}</td><td>{formatCurrency(route.goal_amount)}</td><td>{route.is_active ? 'Ativa' : 'Arquivada'}</td><td><div className="button-row compact-actions"><button className="secondary-button" onClick={() => startEditing(route)} type="button"><Pencil size={15} />Editar</button><button className="secondary-button" onClick={() => toggleRoute(route)} type="button">{route.is_active ? <Archive size={15} /> : <RotateCcw size={15} />}{route.is_active ? 'Arquivar' : 'Reativar'}</button></div></td></tr>)}</tbody>
+          <tbody>{routes.data.map((route) => <tr key={route.id}><td><Link to={`/rotas/${route.id}`}>{route.name}</Link></td><td>{[route.neighborhood, route.city].filter(Boolean).join(', ') || '-'}</td><td>{route.collector_id ? affiliateNames.get(route.collector_id) ?? '-' : '-'}</td><td>{formatCollectionDays(route.collection_days)}</td><td>{formatCurrency(route.goal_amount)}</td><td>{route.is_active ? 'Ativa' : 'Arquivada'}</td><td><div className="button-row compact-actions"><button className="secondary-button" onClick={() => startEditing(route)} type="button"><Pencil size={15} />Editar</button><button className="secondary-button" onClick={() => toggleRoute(route)} type="button">{route.is_active ? <Archive size={15} /> : <RotateCcw size={15} />}{route.is_active ? 'Arquivar' : 'Reativar'}</button><button className="destructive-button" onClick={() => deleteRoute(route)} type="button"><Trash2 size={15} />Excluir</button></div></td></tr>)}</tbody>
         </table>
       </section>
     </section>
