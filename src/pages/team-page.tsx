@@ -57,7 +57,7 @@ export function TeamPage() {
       members.reload()
       form.reset()
     } catch (error) {
-      setMessage(getOperationErrorMessage(error, 'atualizar o perfil'))
+      setMessage(await getFunctionErrorMessage(error, 'atualizar o perfil'))
     } finally {
       setSavingId(null)
     }
@@ -67,22 +67,24 @@ export function TeamPage() {
     event.preventDefault()
     const form = event.currentTarget
     const formData = new FormData(form)
-    const { error } = await supabase.functions.invoke('create-team-user', { body: {
-      fullName: String(formData.get('fullName') ?? ''),
-      email: String(formData.get('email') ?? ''),
-      password: String(formData.get('password') ?? ''),
-      phone: nullableText(formData.get('phone')),
-      cpf: nullableText(formData.get('cpf')),
-      role: String(formData.get('role')),
-      routeId: nullableText(formData.get('routeId')),
-      commissionRate: toNumber(formData.get('commissionRate')),
-    } })
-    if (error) setMessage(`${error.message}. Publique a Edge Function create-team-user.`)
-    else {
+    try {
+      const { error } = await supabase.functions.invoke('create-team-user', { body: {
+        fullName: String(formData.get('fullName') ?? ''),
+        email: String(formData.get('email') ?? ''),
+        password: String(formData.get('password') ?? ''),
+        phone: nullableText(formData.get('phone')),
+        cpf: nullableText(formData.get('cpf')),
+        role: String(formData.get('role')),
+        routeId: nullableText(formData.get('routeId')),
+        commissionRate: toNumber(formData.get('commissionRate')),
+      } })
+      if (error) throw error
       setMessage('Usuario criado.')
       setCreating(false)
       form.reset()
       members.reload()
+    } catch (error) {
+      setMessage(await getFunctionErrorMessage(error, 'criar o usuario'))
     }
   }
 
@@ -120,7 +122,7 @@ export function TeamPage() {
       members.reload()
       routes.reload()
     } catch (error) {
-      setMessage(getOperationErrorMessage(error, 'excluir o usuario'))
+      setMessage(await getFunctionErrorMessage(error, 'excluir o usuario'))
     } finally {
       setSavingId(null)
     }
@@ -212,4 +214,17 @@ async function listMembers(): Promise<Profile[]> {
   const { data, error } = await supabase.from('profiles').select('*').order('full_name')
   if (error) throw error
   return (data ?? []) as Profile[]
+}
+
+async function getFunctionErrorMessage(error: unknown, operation: string): Promise<string> {
+  const context = error instanceof Error && 'context' in error ? (error as Error & { context?: Response }).context : null
+  if (context) {
+    try {
+      const body = await context.clone().json() as { error?: string }
+      if (body.error) return body.error
+    } catch {
+      // Use the shared fallback when the relay does not return JSON.
+    }
+  }
+  return getOperationErrorMessage(error, operation)
 }

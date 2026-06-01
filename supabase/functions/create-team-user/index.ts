@@ -8,12 +8,14 @@ const headers = {
 
 Deno.serve(async (request) => {
   if (request.method === 'OPTIONS') return new Response('ok', { headers })
+  let createdUserId: string | null = null
+  let admin: ReturnType<typeof createClient> | null = null
   try {
     const url = Deno.env.get('SUPABASE_URL')
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
     if (!url || !serviceRoleKey) throw new Error('Supabase server credentials ausentes.')
     const authorization = request.headers.get('Authorization') ?? ''
-    const admin = createClient(url, serviceRoleKey)
+    admin = createClient(url, serviceRoleKey)
     const token = authorization.replace('Bearer ', '')
     const { data: caller, error: callerError } = await admin.auth.getUser(token)
     if (callerError || !caller.user) throw new Error('Sessao invalida.')
@@ -21,17 +23,24 @@ Deno.serve(async (request) => {
     if (profile?.role !== 'admin') throw new Error('Somente admin pode criar usuarios.')
 
     const body = await request.json()
+    const fullName = String(body.fullName ?? '').trim()
+    const email = String(body.email ?? '').trim().toLowerCase()
+    const password = String(body.password ?? '')
+    if (!fullName) throw new Error('Informe o nome do usuario.')
+    if (!email) throw new Error('Informe o e-mail usado para entrar no sistema.')
+    if (password.length < 6) throw new Error('A senha inicial deve ter pelo menos 6 caracteres.')
     const { data, error } = await admin.auth.admin.createUser({
-      email: body.email,
-      password: body.password,
+      email,
+      password,
       email_confirm: true,
-      user_metadata: { full_name: body.fullName },
+      user_metadata: { full_name: fullName },
     })
     if (error) throw error
+    createdUserId = data.user.id
     const { error: profileError } = await admin.from('profiles').upsert({
       id: data.user.id,
-      full_name: body.fullName,
-      email: body.email,
+      full_name: fullName,
+      email,
       phone: body.phone || null,
       cpf: body.cpf || null,
       role: body.role,
@@ -46,6 +55,7 @@ Deno.serve(async (request) => {
     }
     return new Response(JSON.stringify({ id: data.user.id }), { headers })
   } catch (error) {
+    if (admin && createdUserId) await admin.auth.admin.deleteUser(createdUserId)
     return new Response(JSON.stringify({ error: error instanceof Error ? error.message : 'Erro ao criar usuario.' }), { headers, status: 400 })
   }
 })
