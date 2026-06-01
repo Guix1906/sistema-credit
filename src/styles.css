@@ -427,8 +427,12 @@
     @apply text-sm text-muted-foreground;
   }
 
+  .profile-menu {
+    @apply relative hidden md:block;
+  }
+
   .user-pill {
-    @apply hidden min-h-11 items-center gap-3 rounded-md border border-border bg-background px-3 md:flex;
+    @apply flex min-h-11 items-center gap-3 rounded-md border border-border bg-background px-3 text-left text-foreground hover:bg-accent;
   }
 
   .user-pill > span {
@@ -445,6 +449,48 @@
 
   .user-pill small {
     @apply text-sm text-muted-foreground;
+  }
+
+  .user-pill svg {
+    @apply transition-transform;
+  }
+
+  .profile-chevron-open {
+    @apply rotate-180;
+  }
+
+  .profile-panel {
+    @apply absolute right-0 top-[calc(100%+8px)] z-40 grid w-[min(88vw,290px)] gap-3 rounded-lg border border-border bg-card p-3 text-card-foreground shadow-xl;
+  }
+
+  .profile-panel-heading {
+    @apply flex items-start gap-3 border-b border-border pb-3;
+  }
+
+  .profile-panel-heading svg {
+    @apply mt-0.5 shrink-0 text-accent-foreground;
+  }
+
+  .profile-panel-heading div {
+    @apply min-w-0;
+  }
+
+  .profile-panel-heading strong,
+  .profile-panel-heading small {
+    @apply block truncate;
+  }
+
+  .profile-panel-heading small,
+  .profile-panel-meta span {
+    @apply mt-1 text-xs text-muted-foreground;
+  }
+
+  .profile-panel-meta {
+    @apply flex items-center justify-between gap-3 rounded-md bg-background p-3 text-sm;
+  }
+
+  .profile-logout-button {
+    @apply inline-flex min-h-10 items-center justify-center gap-2 bg-secondary text-sm text-secondary-foreground;
   }
 
   .page-shell {

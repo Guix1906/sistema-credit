@@ -1,5 +1,5 @@
-import { Bell, ChevronDown, LogOut, Menu, Search, X } from 'lucide-react'
-import { type FormEvent, useMemo, useState } from 'react'
+import { Bell, ChevronDown, LogOut, Menu, Search, UserRound, X } from 'lucide-react'
+import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 
 import { navigationGroups, navigationItems } from '../config/navigation'
@@ -13,7 +13,9 @@ export function AppLayout() {
   const { profile, user, signOut } = useAuth()
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
+  const [profileOpen, setProfileOpen] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
+  const profileMenuRef = useRef<HTMLDivElement>(null)
   const location = useLocation()
   const navigate = useNavigate()
   const currentRoute = useMemo(
@@ -28,6 +30,14 @@ export function AppLayout() {
   const userName = profile?.full_name ?? user?.email ?? 'Usuario'
   const alerts = useAsyncData(listOpenAlerts, [] as AlertSummary[])
   const appSettings = useAsyncData(getLayoutSettings, null)
+
+  useEffect(() => {
+    function closeProfileMenu(event: MouseEvent) {
+      if (!profileMenuRef.current?.contains(event.target as Node)) setProfileOpen(false)
+    }
+    document.addEventListener('mousedown', closeProfileMenu)
+    return () => document.removeEventListener('mousedown', closeProfileMenu)
+  }, [])
 
   async function resolveAlert(id: string) {
     const { error } = await supabase.from('alerts').update({ status: 'resolved', resolved_at: new Date().toISOString() }).eq('id', id)
@@ -55,7 +65,7 @@ export function AppLayout() {
           <div className="route-heading"><span>Rota atual</span><strong>{currentRoute.label}</strong></div>
           <form className="topbar-search" onSubmit={submitSearch}><Search aria-hidden="true" size={18} /><input onChange={(event) => setSearchTerm(event.target.value)} placeholder="Buscar cliente, CPF ou telefone" type="search" value={searchTerm} /></form>
           <div className="topbar-actions">
-            <button className="icon-button" onClick={() => setNotificationsOpen((open) => !open)} type="button" aria-label="Notificacoes">
+            <button className="icon-button" onClick={() => { setProfileOpen(false); setNotificationsOpen((open) => !open) }} type="button" aria-label="Notificacoes">
               <Bell size={19} />
               {alerts.data.length ? <span className="notification-dot" /> : null}
             </button>
@@ -72,10 +82,19 @@ export function AppLayout() {
                 {!alerts.data.length ? <small>Nenhum alerta aberto.</small> : null}
               </section>
             ) : null}
-            <div className="user-pill">
-              <span>{userName.slice(0, 1).toUpperCase()}</span>
-              <div><strong>{userName}</strong><small>{profile?.role ?? 'sem perfil'}</small></div>
-              <ChevronDown aria-hidden="true" size={16} />
+            <div className="profile-menu" ref={profileMenuRef}>
+              <button className="user-pill" aria-expanded={profileOpen} onClick={() => { setNotificationsOpen(false); setProfileOpen((open) => !open) }} type="button">
+                <span>{userName.slice(0, 1).toUpperCase()}</span>
+                <div><strong>{userName}</strong><small>{profile?.role ?? 'sem perfil'}</small></div>
+                <ChevronDown aria-hidden="true" className={profileOpen ? 'profile-chevron-open' : ''} size={16} />
+              </button>
+              {profileOpen ? (
+                <section className="profile-panel">
+                  <div className="profile-panel-heading"><UserRound size={18} /><div><strong>{userName}</strong><small>{user?.email ?? profile?.email ?? '-'}</small></div></div>
+                  <div className="profile-panel-meta"><span>Perfil de acesso</span><b>{profile?.role ?? 'sem perfil'}</b></div>
+                  <button className="profile-logout-button" onClick={signOut} type="button"><LogOut size={17} />Sair do sistema</button>
+                </section>
+              ) : null}
             </div>
             <button className="icon-button" onClick={signOut} type="button" aria-label="Sair"><LogOut size={19} /></button>
           </div>
