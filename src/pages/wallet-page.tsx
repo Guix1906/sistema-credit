@@ -27,7 +27,7 @@ export function WalletPage() {
       </div>
       <section className="content-panel filter-grid-desktop">
         <select value={filters.routeId} onChange={(event) => setFilters((current) => ({ ...current, routeId: event.target.value }))}><option value="">Todas as rotas</option>{options.data.routes.map((route) => <option key={route.id} value={route.id}>{route.name}</option>)}</select>
-        <select value={filters.collectorId} onChange={(event) => setFilters((current) => ({ ...current, collectorId: event.target.value }))}><option value="">Todos os cobradores</option>{options.data.collectors.map((collector) => <option key={collector.id} value={collector.id}>{collector.full_name}</option>)}</select>
+        <select value={filters.collectorId} onChange={(event) => setFilters((current) => ({ ...current, collectorId: event.target.value }))}><option value="">Todos os afiliados</option>{options.data.collectors.map((affiliate) => <option key={affiliate.id} value={affiliate.id}>{affiliate.full_name}</option>)}</select>
         <select value={filters.status} onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value }))}><option value="all">Todos os status</option><option value="active">Em dia</option><option value="overdue">Atrasadas</option><option value="defaulted">Vencidas</option><option value="paid">Quitadas</option></select>
         <input placeholder="Nome do cliente" value={filters.term} onChange={(event) => setFilters((current) => ({ ...current, term: event.target.value }))} />
       </section>

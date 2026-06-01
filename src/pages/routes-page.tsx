@@ -13,6 +13,7 @@ export function RoutesPage() {
   const { profile } = useAuth()
   const routes = useAsyncData(listRoutes, [])
   const collectors = useAsyncData(listCollectors, [])
+  const affiliateNames = new Map(collectors.data.map((affiliate) => [affiliate.id, affiliate.full_name]))
   const [editing, setEditing] = useState<RouteRecord | null>(null)
   const [message, setMessage] = useState('')
 
@@ -31,6 +32,7 @@ export function RoutesPage() {
       neighborhood: nullableText(formData.get('neighborhood')),
       description: nullableText(formData.get('description')),
       collector_id: nullableText(formData.get('collectorId')),
+      collection_days: String(formData.get('collectionDays') ?? '').split(',').map((day) => Number(day.trim())).filter((day) => day >= 1 && day <= 7),
       goal_amount: toNumber(formData.get('goalAmount')),
       is_active: formData.get('status') === 'active',
     }
@@ -78,7 +80,7 @@ export function RoutesPage() {
       <div className="page-title-row">
         <div>
           <h1>Rotas</h1>
-          <p>Cadastro e edicao de rotas com meta, cidade, bairro e cobrador responsavel.</p>
+          <p>Rota e a carteira/local de cobranca. Vincule o afiliado principal sem misturar os dois conceitos.</p>
         </div>
       </div>
       <form className="content-panel form-grid" key={editing?.id ?? 'new'} onSubmit={handleSubmit}>
@@ -86,7 +88,8 @@ export function RoutesPage() {
         <label>Cidade<input name="city" defaultValue={editing?.city ?? ''} /></label>
         <label>Bairro<input name="neighborhood" defaultValue={editing?.neighborhood ?? ''} /></label>
         <label>Meta<input name="goalAmount" type="number" step="0.01" defaultValue={editing?.goal_amount ?? 0} /></label>
-        <label>Cobrador<select name="collectorId" defaultValue={editing?.collector_id ?? ''}><option value="">Sem cobrador</option>{collectors.data.map((collector) => <option key={collector.id} value={collector.id}>{collector.full_name}</option>)}</select></label>
+        <label>Afiliado principal<select name="collectorId" defaultValue={editing?.collector_id ?? ''}><option value="">Sem afiliado</option>{collectors.data.map((affiliate) => <option key={affiliate.id} value={affiliate.id}>{affiliate.full_name}</option>)}</select></label>
+        <label>Dias de cobranca<input name="collectionDays" placeholder="1,2,3,4,5" defaultValue={editing?.collection_days?.join(',') ?? ''} /></label>
         <label>Status<select name="status" defaultValue={editing?.is_active === false ? 'inactive' : 'active'}><option value="active">Ativa</option><option value="inactive">Inativa</option></select></label>
         <label className="full-span">Descricao<textarea name="description" defaultValue={editing?.description ?? ''} /></label>
         {message ? <p className="form-message full-span">{message}</p> : null}
@@ -97,12 +100,17 @@ export function RoutesPage() {
       </form>
       <section className="content-panel desktop-table-wrap">
         <table>
-          <thead><tr><th>Nome</th><th>Cidade</th><th>Bairro</th><th>Meta</th><th>Status</th><th>Acoes</th></tr></thead>
-          <tbody>{routes.data.map((route) => <tr key={route.id}><td><Link to={`/rotas/${route.id}`}>{route.name}</Link></td><td>{route.city ?? '-'}</td><td>{route.neighborhood ?? '-'}</td><td>{formatCurrency(route.goal_amount)}</td><td>{route.is_active ? 'Ativa' : 'Inativa'}</td><td><div className="button-row"><button className="secondary-button" onClick={() => setEditing(route)} type="button">Editar</button><button className="secondary-button" onClick={() => toggleRoute(route)} type="button">{route.is_active ? 'Desativar' : 'Ativar'}</button></div></td></tr>)}</tbody>
+          <thead><tr><th>Nome</th><th>Local</th><th>Afiliado principal</th><th>Dias</th><th>Meta</th><th>Status</th><th>Acoes</th></tr></thead>
+          <tbody>{routes.data.map((route) => <tr key={route.id}><td><Link to={`/rotas/${route.id}`}>{route.name}</Link></td><td>{[route.neighborhood, route.city].filter(Boolean).join(', ') || '-'}</td><td>{route.collector_id ? affiliateNames.get(route.collector_id) ?? '-' : '-'}</td><td>{formatCollectionDays(route.collection_days)}</td><td>{formatCurrency(route.goal_amount)}</td><td>{route.is_active ? 'Ativa' : 'Inativa'}</td><td><div className="button-row"><button className="secondary-button" onClick={() => setEditing(route)} type="button">Editar</button><button className="secondary-button" onClick={() => toggleRoute(route)} type="button">{route.is_active ? 'Desativar' : 'Ativar'}</button></div></td></tr>)}</tbody>
         </table>
       </section>
     </section>
   )
+}
+
+function formatCollectionDays(days?: number[]) {
+  const labels = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sab', 'Dom']
+  return days?.length ? days.map((day) => labels[day - 1]).filter(Boolean).join(', ') : '-'
 }
 
 async function registerRouteAudit(...parameters: Parameters<typeof insertAuditLog>): Promise<boolean> {

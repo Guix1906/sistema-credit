@@ -7,6 +7,7 @@ export type RouteRecord = {
   name: string
   description: string | null
   collector_id: string | null
+  collection_days?: number[]
   city?: string | null
   neighborhood?: string | null
   goal_amount?: number
@@ -17,6 +18,7 @@ export type ClientRecord = {
   id: string
   owner_id: string
   route_id: string | null
+  affiliate_id?: string | null
   name: string
   document_number: string | null
   rg?: string | null

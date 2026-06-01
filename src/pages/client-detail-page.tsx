@@ -10,7 +10,7 @@ import { formatCurrency, formatDate } from '../lib/formatters'
 import { calculateLateFee } from '../lib/late-fee-calculator'
 import { maskDocument, maskPhone } from '../lib/masks'
 import { supabase } from '../lib/supabase'
-import { getActiveLoanSettings, insertAuditLog } from '../services/finance-service'
+import { getActiveLoanSettings, getSelectOptions, insertAuditLog } from '../services/finance-service'
 import { createClientDocumentSignedUrl } from '../services/storage-service'
 import type { ClientRecord, InstallmentRecord, LoanRecord } from '../types/finance'
 
@@ -50,6 +50,9 @@ export function ClientDetailPage() {
   const { data, loading, error, reload } = useAsyncData(loader, { client: null as ClientRecord | null, loans: [] as LoanRecord[], installments: [] as InstallmentRecord[], documents: [] as ClientDocument[] })
   const settingsLoader = useCallback(() => getActiveLoanSettings(profile?.id), [profile?.id])
   const settings = useAsyncData(settingsLoader, null)
+  const options = useAsyncData(getSelectOptions, { routes: [], collectors: [], cashboxes: [] })
+  const routeName = options.data.routes.find((route) => route.id === data.client?.route_id)?.name ?? '-'
+  const affiliateName = options.data.collectors.find((affiliate) => affiliate.id === data.client?.affiliate_id)?.full_name ?? '-'
   const total = data.loans.reduce((sum, loan) => sum + loan.total_amount, 0)
   const paid = data.installments.reduce((sum, installment) => sum + installment.paid_amount, 0)
   const open = Math.max(total - paid, 0)
@@ -76,6 +79,8 @@ export function ClientDetailPage() {
       address: String(formData.get('address') ?? '') || null,
       neighborhood: String(formData.get('neighborhood') ?? '') || null,
       city: String(formData.get('city') ?? '') || null,
+      route_id: String(formData.get('routeId') ?? '') || null,
+      affiliate_id: String(formData.get('affiliateId') ?? '') || null,
       reference_point: String(formData.get('referencePoint') ?? '') || null,
       notes: String(formData.get('notes') ?? '') || null,
     }
@@ -137,6 +142,8 @@ export function ClientDetailPage() {
           <label>Endereco<input name="address" defaultValue={data.client.address ?? ''} /></label>
           <label>Bairro<input name="neighborhood" defaultValue={data.client.neighborhood ?? ''} /></label>
           <label>Cidade<input name="city" defaultValue={data.client.city ?? ''} /></label>
+          <label>Rota<select name="routeId" defaultValue={data.client.route_id ?? ''}><option value="">Sem rota</option>{options.data.routes.map((route) => <option key={route.id} value={route.id}>{route.name}</option>)}</select></label>
+          <label>Afiliado responsavel<select name="affiliateId" defaultValue={data.client.affiliate_id ?? ''}><option value="">Sem afiliado</option>{options.data.collectors.map((affiliate) => <option key={affiliate.id} value={affiliate.id}>{affiliate.full_name}</option>)}</select></label>
           <label>Referencia<input name="referencePoint" defaultValue={data.client.reference_point ?? ''} /></label>
           <label className="full-span">Observacoes<textarea name="notes" defaultValue={data.client.notes ?? ''} /></label>
           <button className="full-span" type="submit">Salvar cliente</button>
@@ -148,6 +155,8 @@ export function ClientDetailPage() {
             <div><dt>Endereco</dt><dd>{data.client?.address ?? '-'}</dd></div>
             <div><dt>Bairro</dt><dd>{data.client?.neighborhood ?? '-'}</dd></div>
             <div><dt>Cidade</dt><dd>{data.client?.city ?? '-'}</dd></div>
+            <div><dt>Rota</dt><dd>{routeName}</dd></div>
+            <div><dt>Afiliado responsavel</dt><dd>{affiliateName}</dd></div>
             <div><dt>Referencia</dt><dd>{data.client?.reference_point ?? '-'}</dd></div>
             <div className="full-span"><dt>Observacoes</dt><dd>{data.client?.notes ?? '-'}</dd></div>
           </dl>

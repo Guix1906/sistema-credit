@@ -171,7 +171,7 @@ export function SalesPage() {
               <label>Nome<input name="name" required /></label>
               <label>CPF/CNPJ<MaskedInput mask={maskDocument} name="documentNumber" /></label>
               <label>RG<input name="rg" /></label>
-              <label>Telefone<MaskedInput mask={maskPhone} name="phone" /></label>
+              <label>Telefone<MaskedInput mask={maskPhone} name="phone" required /></label>
               <label>WhatsApp<MaskedInput mask={maskPhone} name="whatsapp" /></label>
               <label>Endereco<input name="address" /></label>
               <label>Bairro<input name="neighborhood" /></label>
@@ -194,7 +194,7 @@ export function SalesPage() {
             <label>Data inicial<input defaultValue={localIsoDate()} name="startDate" required type="date" /></label>
             <label>Data final<input readOnly value={preview?.installments.at(-1)?.dueDate ?? ''} /></label>
             <label>Rota<select defaultValue={simulationMeta?.routeId ?? ''} name="routeId"><option value="">Sem rota</option>{options.data.routes.map((route) => <option key={route.id} value={route.id}>{route.name}</option>)}</select></label>
-            <label>Cobrador<select defaultValue={simulationMeta?.collectorId ?? ''} name="collectorId"><option value="">Sem cobrador</option>{options.data.collectors.map((collector) => <option key={collector.id} value={collector.id}>{collector.full_name}</option>)}</select></label>
+            <label>Afiliado responsavel<select defaultValue={simulationMeta?.collectorId ?? ''} name="collectorId"><option value="">Sem afiliado</option>{options.data.collectors.map((affiliate) => <option key={affiliate.id} value={affiliate.id}>{affiliate.full_name}</option>)}</select></label>
             <label>Caixa origem<select defaultValue={simulationMeta?.cashboxId ?? ''} name="cashboxId"><option value="">Sem caixa</option>{options.data.cashboxes.map((cashbox) => <option key={cashbox.id} value={cashbox.id}>{cashbox.name} - {formatCurrency(cashbox.current_balance)}</option>)}</select></label>
           </div>
           <div className="result-grid">

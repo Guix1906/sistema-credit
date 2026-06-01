@@ -11,7 +11,7 @@ type ReportType = 'geral' | 'rota' | 'cobrador' | 'cliente' | 'vendas' | 'pagas'
 const reportLabels: Record<ReportType, string> = {
   geral: 'Geral',
   rota: 'Por rota',
-  cobrador: 'Por cobrador',
+  cobrador: 'Por afiliado',
   cliente: 'Por cliente',
   vendas: 'Vendas',
   pagas: 'Parcelas pagas',
@@ -146,7 +146,7 @@ async function enrichLoanRows(rows: Record<string, unknown>[]): Promise<Record<s
     ...row,
     cliente: clients.get(String(row.client_id ?? '')) ?? '',
     rota: routes.get(String(row.route_id ?? '')) ?? '',
-    cobrador: collectors.get(String(row.collector_id ?? '')) ?? '',
+    afiliado: collectors.get(String(row.collector_id ?? '')) ?? '',
   }))
 }
 
@@ -160,7 +160,7 @@ async function enrichInstallmentRows(rows: Record<string, unknown>[]): Promise<R
   const loanById = new Map(enrichedLoans.map((loan) => [String(loan.id), loan]))
   return rows.map((row) => {
     const loan = loanById.get(String(row.loan_id))
-    return { ...row, cliente: loan?.cliente ?? '', rota: loan?.rota ?? '', cobrador: loan?.cobrador ?? '' }
+    return { ...row, cliente: loan?.cliente ?? '', rota: loan?.rota ?? '', afiliado: loan?.afiliado ?? '' }
   })
 }
 

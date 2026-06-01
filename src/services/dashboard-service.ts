@@ -42,16 +42,22 @@ export type DashboardLatestPayment = {
 }
 
 export type PremiumDashboardData = {
+  totalBorrowed: number
   totalPortfolio: number
   totalReceivable: number
   totalReceived: number
+  receivedToday: number
+  receivedMonth: number
   expectedProfit: number
+  realizedProfit: number
   overdueTotal: number
   monthlyVariation: number | null
   dueTodayCount: number
   inCollectionCount: number
   overdueCount: number
   paidCount: number
+  activeLoansCount: number
+  activeClientsCount: number
   chart: DashboardChartPoint[]
   alerts: DashboardAlert[]
   riskClients: DashboardRiskClient[]
@@ -88,16 +94,22 @@ type PaymentRow = {
 }
 
 const dashboardFallback: PremiumDashboardData = {
+  totalBorrowed: 0,
   totalPortfolio: 0,
   totalReceivable: 0,
   totalReceived: 0,
+  receivedToday: 0,
+  receivedMonth: 0,
   expectedProfit: 0,
+  realizedProfit: 0,
   overdueTotal: 0,
   monthlyVariation: null,
   dueTodayCount: 0,
   inCollectionCount: 0,
   overdueCount: 0,
   paidCount: 0,
+  activeLoansCount: 0,
+  activeClientsCount: 0,
   chart: [],
   alerts: [],
   riskClients: [],
@@ -155,18 +167,25 @@ export async function getPremiumDashboardData(period: DashboardPeriod, reference
     : { data: [], error: null }
   if (clientsResult.error) throw clientsResult.error
   const clientNames = new Map((clientsResult.data ?? []).map((client) => [client.id, client.name]))
+  const activeLoans = loans.filter((loan) => loan.status !== 'paid' && loan.status !== 'cancelled' && loan.remaining_amount > 0)
 
   return {
+    totalBorrowed: sum(loans, (loan) => loan.total_amount - loan.interest_amount),
     totalPortfolio: sum(loans, (loan) => loan.total_amount),
     totalReceivable: sum(loans, (loan) => loan.remaining_amount),
     totalReceived: sum(payments, (payment) => payment.amount),
+    receivedToday: sum(payments.filter((payment) => dayKey(startOfDay(payment.paid_at)) === dayKey(today)), (payment) => payment.amount),
+    receivedMonth: sum(payments.filter((payment) => monthKey(startOfDay(payment.paid_at)) === monthKey(today)), (payment) => payment.amount),
     expectedProfit: sum(loans, (loan) => loan.interest_amount),
+    realizedProfit: sum(loans, (loan) => Math.min(loan.interest_amount, Math.max(loan.paid_amount - (loan.total_amount - loan.interest_amount), 0))),
     overdueTotal: sum(overdueInstallments, remainingInstallmentValue),
     monthlyVariation: getMonthlyVariation(payments, today),
     dueTodayCount: installments.filter((installment) => installment.status !== 'paid' && installment.due_date === referenceDate).length,
     inCollectionCount: riskByClient.size,
     overdueCount: overdueInstallments.length,
     paidCount: installments.filter((installment) => installment.status === 'paid').length,
+    activeLoansCount: activeLoans.length,
+    activeClientsCount: new Set(activeLoans.map((loan) => loan.client_id)).size,
     chart: createChart(period, today, installments, payments),
     alerts: (alertsResult.data ?? []).map((alert) => ({
       id: alert.id,

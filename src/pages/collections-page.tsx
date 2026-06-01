@@ -120,7 +120,7 @@ export function CollectionsPage() {
         <div className="filter-grid-desktop">
           <input onChange={(event) => setTerm(event.target.value)} placeholder="Nome, CPF ou telefone" value={term} />
           <select onChange={(event) => setRouteId(event.target.value)} value={routeId}><option value="">Todas as rotas</option>{options.data.routes.map((route) => <option key={route.id} value={route.id}>{route.name}</option>)}</select>
-          <select onChange={(event) => setCollectorId(event.target.value)} value={collectorId}><option value="">Todos os cobradores</option>{options.data.collectors.map((collector) => <option key={collector.id} value={collector.id}>{collector.full_name}</option>)}</select>
+          <select onChange={(event) => setCollectorId(event.target.value)} value={collectorId}><option value="">Todos os afiliados</option>{options.data.collectors.map((affiliate) => <option key={affiliate.id} value={affiliate.id}>{affiliate.full_name}</option>)}</select>
         </div>
       </section>
       <section className="content-panel daily-receivables-panel">
@@ -146,7 +146,7 @@ export function CollectionsPage() {
             <article className="mobile-data-card" key={item.id}>
               <strong>{item.client?.name ?? 'Cliente'}</strong>
               <span>Parcela {item.installment_number} - vencimento {formatDate(item.due_date)}</span>
-              <small>{queueLabel} · {routeNames.get(item.loan?.route_id ?? '') ?? 'Sem rota'} · {collectorNames.get(item.loan?.collector_id ?? '') ?? 'Sem cobrador'}</small>
+              <small>{queueLabel} · {routeNames.get(item.loan?.route_id ?? '') ?? 'Sem rota'} · {collectorNames.get(item.loan?.collector_id ?? '') ?? 'Sem afiliado'}</small>
               <div className="mini-totals">
                 <b>{formatCurrency(item.amount)}</b>
                 <b>{formatCurrency(fee.lateFeeAmount)}</b>

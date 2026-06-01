@@ -46,6 +46,7 @@ export function ClientsPage() {
         city: nullableText(formData.get('city')) ?? undefined,
         notes: nullableText(formData.get('notes')) ?? undefined,
         routeId: nullableText(formData.get('routeId')) ?? undefined,
+        affiliateId: nullableText(formData.get('affiliateId')) ?? undefined,
       })
       setMessage('Cliente cadastrado.')
       setCreating(false)
@@ -61,7 +62,7 @@ export function ClientsPage() {
       <div className="page-title-row">
         <div>
           <h1>Clientes</h1>
-          <p>Filtros por nome, CPF, telefone, rota, status e cobrador com dados reais.</p>
+          <p>Carteira de clientes com rota local e afiliado responsavel claramente separados.</p>
         </div>
         <div className="button-row">
           <button className="secondary-button" onClick={() => setCreating((current) => !current)} type="button">{creating ? <X size={17} /> : <UserRoundPlus size={17} />}{creating ? 'Fechar cadastro' : 'Novo cliente'}</button>
@@ -75,9 +76,10 @@ export function ClientsPage() {
           <div className="compact-client-fields">
             <label>Nome<input name="name" required /></label>
             <label>CPF/CNPJ<MaskedInput mask={maskDocument} name="documentNumber" /></label>
-            <label>Telefone<MaskedInput mask={maskPhone} name="phone" /></label>
+            <label>Telefone<MaskedInput mask={maskPhone} name="phone" required /></label>
             <label>WhatsApp<MaskedInput mask={maskPhone} name="whatsapp" /></label>
             <label>Rota<select name="routeId"><option value="">Sem rota</option>{options.data.routes.map((route) => <option key={route.id} value={route.id}>{route.name}</option>)}</select></label>
+            <label>Afiliado responsavel<select name="affiliateId"><option value="">Sem afiliado</option>{options.data.collectors.map((affiliate) => <option key={affiliate.id} value={affiliate.id}>{affiliate.full_name}</option>)}</select></label>
             <label>Cidade<input name="city" /></label>
             <label>Bairro<input name="neighborhood" /></label>
             <label>Endereco<input name="address" /></label>
@@ -91,7 +93,7 @@ export function ClientsPage() {
         <input onChange={(event) => setTerm(event.target.value)} placeholder="Nome, CPF ou telefone" value={term} />
         <select onChange={(event) => setRouteId(event.target.value)} value={routeId}><option value="">Todas as rotas</option>{options.data.routes.map((route) => <option key={route.id} value={route.id}>{route.name}</option>)}</select>
         <select onChange={(event) => setStatus(event.target.value)} value={status}><option value="all">Todos os status</option><option value="active">Ativos</option><option value="paid_off">Quitados</option><option value="overdue">Atrasados</option><option value="inactive">Inativos</option></select>
-        <select onChange={(event) => setCollectorId(event.target.value)} value={collectorId}><option value="">Todos os cobradores</option>{options.data.collectors.map((collector) => <option key={collector.id} value={collector.id}>{collector.full_name}</option>)}</select>
+        <select onChange={(event) => setCollectorId(event.target.value)} value={collectorId}><option value="">Todos os afiliados</option>{options.data.collectors.map((affiliate) => <option key={affiliate.id} value={affiliate.id}>{affiliate.full_name}</option>)}</select>
         <button onClick={reload} type="button">Filtrar</button>
       </section>
 
@@ -105,7 +107,7 @@ export function ClientsPage() {
           <article className="mobile-data-card" key={client.id}>
             <strong>{client.name}</strong>
             <span>{client.phone ?? client.whatsapp ?? 'Sem telefone'}</span>
-            <small>{client.route_name ?? 'Sem rota'} | {client.status}</small>
+            <small>{client.route_name ?? 'Sem rota'} | {client.affiliate_name ?? 'Sem afiliado'} | {client.status}</small>
             <div className="mini-totals">
               <b>{formatCurrency(client.total_to_pay)}</b>
               <b>{formatCurrency(client.total_paid)}</b>
@@ -121,11 +123,11 @@ export function ClientsPage() {
 
       <section className="content-panel desktop-table-wrap">
         <table>
-          <thead><tr><th>Nome</th><th>Telefone</th><th>Rota</th><th>Total a pagar</th><th>Total pago</th><th>Aberto</th><th>Status</th></tr></thead>
+          <thead><tr><th>Nome</th><th>Telefone</th><th>Rota</th><th>Afiliado</th><th>Total a pagar</th><th>Total pago</th><th>Aberto</th><th>Status</th></tr></thead>
           <tbody>
             {clients.map((client) => (
               <tr key={client.id}>
-                <td><Link to={`/clientes/${client.id}`}>{client.name}</Link></td><td>{client.phone ?? client.whatsapp ?? '-'}</td><td>{client.route_name ?? '-'}</td>
+                <td><Link to={`/clientes/${client.id}`}>{client.name}</Link></td><td>{client.phone ?? client.whatsapp ?? '-'}</td><td>{client.route_name ?? '-'}</td><td>{client.affiliate_name ?? '-'}</td>
                 <td>{formatCurrency(client.total_to_pay)}</td><td>{formatCurrency(client.total_paid)}</td><td>{formatCurrency(client.total_open)}</td><td>{client.status}</td>
               </tr>
             ))}

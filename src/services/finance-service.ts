@@ -26,6 +26,7 @@ export type DashboardMetrics = {
 
 export type ClientWithTotals = ClientRecord & {
   route_name: string | null
+  affiliate_name: string | null
   total_to_pay: number
   total_paid: number
   total_open: number
@@ -74,7 +75,7 @@ export async function getActiveLoanSettings(_ownerId?: string): Promise<LoanSett
 }
 
 export async function listRoutes(): Promise<RouteRecord[]> {
-  const { data, error } = await supabase.from('routes').select('id, owner_id, name, description, collector_id, city, neighborhood, goal_amount, is_active').order('name')
+  const { data, error } = await supabase.from('routes').select('id, owner_id, name, description, collector_id, collection_days, city, neighborhood, goal_amount, is_active').order('name')
   if (error) throw error
   return (data ?? []) as RouteRecord[]
 }
@@ -92,7 +93,7 @@ export async function listCashboxes(): Promise<CashboxRecord[]> {
 }
 
 export async function searchClients(term = '', filters: { routeId?: string; collectorId?: string; activeOnly?: boolean } = {}): Promise<ClientRecord[]> {
-  let query = supabase.from('clients').select('id, owner_id, route_id, name, document_number, rg, phone, whatsapp, email, address, neighborhood, city, state, postal_code, reference_point, notes, status, is_active').order('name').limit(30)
+  let query = supabase.from('clients').select('id, owner_id, route_id, affiliate_id, name, document_number, rg, phone, whatsapp, email, address, neighborhood, city, state, postal_code, reference_point, notes, status, is_active').order('name').limit(30)
   const safeTerm = term.trim().replace(/[,%()]/g, '')
   if (safeTerm) {
     const digits = safeTerm.replace(/\D/g, '')
@@ -116,8 +117,9 @@ export async function searchClients(term = '', filters: { routeId?: string; coll
     if (routesError) throw routesError
     if (collectorResult.error) throw collectorResult.error
     const routeIds = [...new Set([...(routes ?? []).map((route) => route.id), collectorResult.data?.route_id].filter((id): id is string => Boolean(id)))]
-    if (!routeIds.length) return []
-    query = query.in('route_id', routeIds)
+    query = routeIds.length
+      ? query.or(`affiliate_id.eq.${filters.collectorId},route_id.in.(${routeIds.join(',')})`)
+      : query.eq('affiliate_id', filters.collectorId)
   }
   const { data, error } = await query
   if (error) throw error
@@ -134,13 +136,26 @@ export async function createClient(profile: Profile, input: {
   city?: string
   notes?: string
   routeId?: string
+  affiliateId?: string
 }): Promise<void> {
+  const name = input.name.trim()
+  const phone = input.phone?.trim()
+  if (!name) throw new Error('Informe o nome do cliente.')
+  if (!phone) throw new Error('Informe o telefone do cliente.')
+  const duplicateFilters = [
+    `phone.eq.${phone}`,
+    ...(input.documentNumber ? [`document_number.eq.${input.documentNumber}`] : []),
+  ]
+  const { data: duplicate, error: duplicateError } = await supabase.from('clients').select('id').or(duplicateFilters.join(',')).limit(1)
+  if (duplicateError) throw duplicateError
+  if (duplicate?.length) throw new Error('Cliente ja cadastrado com este telefone ou documento.')
   const { data, error } = await supabase.from('clients').insert({
     owner_id: profile.id,
     route_id: input.routeId || null,
-    name: input.name.trim(),
+    affiliate_id: input.affiliateId || null,
+    name,
     document_number: input.documentNumber || null,
-    phone: input.phone || null,
+    phone,
     whatsapp: input.whatsapp || null,
     address: input.address || null,
     neighborhood: input.neighborhood || null,
@@ -155,8 +170,9 @@ export async function createClient(profile: Profile, input: {
 export async function listClientsWithTotals(term = '', filters: { routeId?: string; status?: string; collectorId?: string } = {}): Promise<ClientWithTotals[]> {
   const clients = await searchClients(term, { routeId: filters.routeId, collectorId: filters.collectorId })
   if (!clients.length) return []
-  const [routes, loans] = await Promise.all([
+  const [routes, affiliates, loans] = await Promise.all([
     listRoutes(),
+    listCollectors(),
     supabase.from('loans').select('*').in('client_id', clients.map((client) => client.id)),
   ])
   if (loans.error) throw loans.error
@@ -164,6 +180,7 @@ export async function listClientsWithTotals(term = '', filters: { routeId?: stri
   const installments = loanRows.length ? await supabase.from('installments').select('*').in('loan_id', loanRows.map((loan) => loan.id)) : { data: [], error: null }
   if (installments.error) throw installments.error
   const routeById = new Map(routes.map((route) => [route.id, route.name]))
+  const affiliateById = new Map(affiliates.map((affiliate) => [affiliate.id, affiliate.full_name]))
   const allInstallments = (installments.data ?? []) as InstallmentRecord[]
 
   const rows = clients.map((client) => {
@@ -182,6 +199,7 @@ export async function listClientsWithTotals(term = '', filters: { routeId?: stri
     return {
       ...client,
       route_name: client.route_id ? routeById.get(client.route_id) ?? null : null,
+      affiliate_name: client.affiliate_id ? affiliateById.get(client.affiliate_id) ?? null : null,
       status: computedStatus,
       total_to_pay: totalToPay,
       total_paid: totalPaid,
@@ -201,10 +219,10 @@ export async function createSale(profile: Profile, input: SaleFormInput): Promis
   })
   const firstDueDate = calculation.installments[0]?.dueDate
   const finalDueDate = calculation.installments.at(-1)?.dueDate
-  const notes = `Frequencia: ${input.loan.paymentFrequency}; modalidade: ${input.loan.termDays} dias; taxa: ${calculation.interestRatePercent}%; vencimento final: ${finalDueDate}; rota: ${input.loan.routeId || '-'}; cobrador: ${input.loan.collectorId || '-'}`
+  const notes = `Frequencia: ${input.loan.paymentFrequency}; modalidade: ${input.loan.termDays} dias; taxa: ${calculation.interestRatePercent}%; vencimento final: ${finalDueDate}; rota: ${input.loan.routeId || '-'}; afiliado: ${input.loan.collectorId || '-'}`
   const { data: rpcSale, error: rpcError } = await supabase.rpc('create_credit_sale', {
     p_existing_client_id: input.mode === 'existing' ? input.existingClientId ?? null : null,
-    p_client: { ...input.client, route_id: input.loan.routeId ?? null },
+    p_client: { ...input.client, route_id: input.loan.routeId ?? null, affiliate_id: input.loan.collectorId ?? null },
     p_loan: {
       route_id: input.loan.routeId ?? null,
       collector_id: input.loan.collectorId ?? null,
@@ -228,7 +246,7 @@ export async function createSale(profile: Profile, input: SaleFormInput): Promis
   }
   if (!isMissingRpc(rpcError)) throw rpcError
 
-  const clientId = input.mode === 'existing' && input.existingClientId ? input.existingClientId : await createClientForSale(profile.id, input.client, input.loan.routeId)
+  const clientId = input.mode === 'existing' && input.existingClientId ? input.existingClientId : await createClientForSale(profile.id, input.client, input.loan.routeId, input.loan.collectorId)
   const { data: loan, error: loanError } = await supabase
     .from('loans')
     .insert({
@@ -526,9 +544,9 @@ export async function insertAuditLog(profile: Profile, tableName: string, record
   if (error) throw error
 }
 
-async function createClientForSale(ownerId: string, client: SaleFormInput['client'], routeId?: string): Promise<string> {
+async function createClientForSale(ownerId: string, client: SaleFormInput['client'], routeId?: string, affiliateId?: string): Promise<string> {
   const notes = [client.notes, client.rg ? `RG: ${client.rg}` : '', client.whatsapp ? `WhatsApp: ${client.whatsapp}` : '', client.neighborhood ? `Bairro: ${client.neighborhood}` : '', client.reference_point ? `Referencia: ${client.reference_point}` : ''].filter(Boolean).join('\n')
-  const { data, error } = await supabase.from('clients').insert({ owner_id: ownerId, route_id: routeId || null, name: client.name, document_number: client.document_number || null, phone: client.phone || null, address: client.address || null, city: client.city || null, notes: notes || null }).select('id').single()
+  const { data, error } = await supabase.from('clients').insert({ owner_id: ownerId, route_id: routeId || null, affiliate_id: affiliateId || null, name: client.name, document_number: client.document_number || null, phone: client.phone || null, address: client.address || null, city: client.city || null, notes: notes || null }).select('id').single()
   if (error) throw error
   return data.id
 }
@@ -569,7 +587,7 @@ async function applyCashMovement(profile: Profile, input: {
 }
 
 async function fetchClientsByIds(ids: string[]): Promise<ClientRecord[]> {
-  const { data, error } = await supabase.from('clients').select('id, owner_id, route_id, name, document_number, phone, email, address, city, state, postal_code, notes, is_active').in('id', ids)
+  const { data, error } = await supabase.from('clients').select('id, owner_id, route_id, affiliate_id, name, document_number, phone, email, address, city, state, postal_code, notes, is_active').in('id', ids)
   if (error) throw error
   return (data ?? []) as ClientRecord[]
 }

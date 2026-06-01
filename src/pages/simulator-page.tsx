@@ -97,9 +97,9 @@ export function SimulatorPage() {
             </select>
           </label>
           <label>
-            Cobrador
+            Afiliado responsavel
             <select name="collectorId">
-              <option value="">Sem cobrador</option>
+              <option value="">Sem afiliado</option>
               {options.data.collectors.map((collector) => (
                 <option key={collector.id} value={collector.id}>{collector.full_name}</option>
               ))}
