@@ -17,35 +17,42 @@ Deno.serve(async (request) => {
     const token = authorization.replace('Bearer ', '')
     const { data: caller, error: callerError } = await admin.auth.getUser(token)
     if (callerError || !caller.user) throw new Error('Sessao invalida.')
-    const { data: profile } = await admin.from('profiles').select('role').eq('id', caller.user.id).single()
-    if (profile?.role !== 'admin') throw new Error('Somente admin pode criar usuarios.')
+    const { data: callerProfile } = await admin.from('profiles').select('role').eq('id', caller.user.id).single()
+    if (callerProfile?.role !== 'admin') throw new Error('Somente admin pode atualizar usuarios.')
 
     const body = await request.json()
-    const { data, error } = await admin.auth.admin.createUser({
-      email: body.email,
-      password: body.password,
+    const email = String(body.email ?? '').trim()
+    if (!body.userId) throw new Error('Usuario nao informado.')
+    if (!email) throw new Error('Informe o e-mail usado para entrar no sistema.')
+
+    const { error: authError } = await admin.auth.admin.updateUserById(body.userId, {
+      email,
       email_confirm: true,
       user_metadata: { full_name: body.fullName },
     })
-    if (error) throw error
-    const { error: profileError } = await admin.from('profiles').upsert({
-      id: data.user.id,
+    if (authError) throw authError
+
+    const { error: profileError } = await admin.from('profiles').update({
       full_name: body.fullName,
-      email: body.email,
+      email,
       phone: body.phone || null,
       cpf: body.cpf || null,
       role: body.role,
       route_id: body.routeId || null,
       commission_rate: Number(body.commissionRate || 0),
-      is_active: true,
-    })
+      is_active: body.isActive !== false,
+    }).eq('id', body.userId)
     if (profileError) throw profileError
+
+    const { error: clearRouteError } = await admin.from('routes').update({ collector_id: null }).eq('collector_id', body.userId).neq('id', body.routeId || '00000000-0000-0000-0000-000000000000')
+    if (clearRouteError) throw clearRouteError
     if (body.routeId && ['afiliado', 'cobrador'].includes(body.role)) {
-      const { error: routeError } = await admin.from('routes').update({ collector_id: data.user.id }).eq('id', body.routeId)
+      const { error: routeError } = await admin.from('routes').update({ collector_id: body.userId }).eq('id', body.routeId)
       if (routeError) throw routeError
     }
-    return new Response(JSON.stringify({ id: data.user.id }), { headers })
+
+    return new Response(JSON.stringify({ id: body.userId }), { headers })
   } catch (error) {
-    return new Response(JSON.stringify({ error: error instanceof Error ? error.message : 'Erro ao criar usuario.' }), { headers, status: 400 })
+    return new Response(JSON.stringify({ error: error instanceof Error ? error.message : 'Erro ao atualizar usuario.' }), { headers, status: 400 })
   }
 })

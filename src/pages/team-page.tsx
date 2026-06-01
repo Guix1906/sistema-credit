@@ -29,6 +29,7 @@ export function TeamPage() {
     const formData = new FormData(form)
     const payload = {
       full_name: String(formData.get('fullName') ?? ''),
+      email: String(formData.get('email') ?? '').trim(),
       phone: nullableText(formData.get('phone')),
       cpf: nullableText(formData.get('cpf')),
       role: String(formData.get('role')) as UserRole,
@@ -38,7 +39,17 @@ export function TeamPage() {
     }
     setSavingId(editing.id)
     try {
-      const { error } = await supabase.from('profiles').update(payload).eq('id', editing.id)
+      const { error } = await supabase.functions.invoke('update-team-user', { body: {
+        userId: editing.id,
+        fullName: payload.full_name,
+        email: payload.email,
+        phone: payload.phone,
+        cpf: payload.cpf,
+        role: payload.role,
+        routeId: payload.route_id,
+        commissionRate: payload.commission_rate,
+        isActive: payload.is_active,
+      } })
       if (error) throw error
       await insertAuditLog(profile, 'profiles', editing.id, 'update', editing, payload)
       setMessage('Perfil atualizado.')
@@ -137,7 +148,7 @@ export function TeamPage() {
         <form className="content-panel form-grid" key={editing.id} onSubmit={handleSubmit}>
           <h2 className="full-span">Editar afiliado/cobrador</h2>
           <label>Nome<input name="fullName" required defaultValue={editing.full_name} /></label>
-          <label>E-mail<input readOnly value={editing.email} /></label>
+          <label>E-mail<input name="email" required type="email" defaultValue={editing.email} /></label>
           <label>Telefone<MaskedInput mask={maskPhone} name="phone" defaultValue={editing.phone ?? ''} /></label>
           <label>CPF<MaskedInput mask={maskDocument} name="cpf" defaultValue={editing.cpf ?? ''} /></label>
           <label>Papel<select name="role" defaultValue={editing.role}>{roles.map((role) => <option key={role} value={role}>{role}</option>)}</select></label>
