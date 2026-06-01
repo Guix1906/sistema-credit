@@ -59,11 +59,12 @@ export function ClientsPage() {
   }
 
   async function deleteClient(id: string, name: string) {
-    if (!window.confirm(`Excluir definitivamente o cliente "${name}"? Clientes com historico financeiro devem ser desativados.`)) return
+    if (!window.confirm(`Remover o cliente "${name}"? Se existir historico financeiro, o cliente sera arquivado para preservar os registros.`)) return
     try {
-      const { error: deleteError } = await supabase.rpc('delete_empty_client', { p_client_id: id })
+      const { data, error: deleteError } = await supabase.rpc('delete_or_archive_client', { p_client_id: id })
       if (deleteError) throw deleteError
-      setMessage('Cliente excluido definitivamente.')
+      const result = data as { mode?: 'deleted' | 'archived' } | null
+      setMessage(result?.mode === 'archived' ? 'Cliente arquivado. O historico financeiro foi preservado.' : 'Cliente excluido definitivamente.')
       reload()
     } catch (deleteError) {
       setMessage(getOperationErrorMessage(deleteError, 'excluir o cliente'))

@@ -7,5 +7,9 @@ export function getOperationErrorMessage(error: unknown, operation: string): str
     return error.message
   }
 
+  if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string') {
+    return error.message
+  }
+
   return `Nao foi possivel ${operation}.`
 }

@@ -109,10 +109,13 @@ export function ClientDetailPage() {
   }
 
   async function deleteClient() {
-    if (!data.client || !window.confirm(`Excluir definitivamente o cliente "${data.client.name}"? Clientes com historico financeiro devem ser desativados.`)) return
-    const { error: deleteError } = await supabase.rpc('delete_empty_client', { p_client_id: data.client.id })
+    if (!data.client || !window.confirm(`Remover o cliente "${data.client.name}"? Se existir historico financeiro, o cliente sera arquivado para preservar os registros.`)) return
+    const { data: result, error: deleteError } = await supabase.rpc('delete_or_archive_client', { p_client_id: data.client.id })
     if (deleteError) setMessage(deleteError.message)
-    else navigate('/clientes')
+    else if ((result as { mode?: string } | null)?.mode === 'archived') {
+      setMessage('Cliente arquivado. O historico financeiro foi preservado.')
+      reload()
+    } else navigate('/clientes')
   }
 
   return (
