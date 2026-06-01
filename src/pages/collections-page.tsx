@@ -1,5 +1,5 @@
-import { MessageCircle, PhoneCall } from 'lucide-react'
-import { useCallback, useState } from 'react'
+import { CalendarClock, CheckCircle2, MessageCircle, PhoneCall, TriangleAlert } from 'lucide-react'
+import { useCallback, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 
 import { useAuth } from '../contexts/auth-context'
@@ -7,11 +7,14 @@ import { useAsyncData } from '../hooks/use-async-data'
 import { localIsoDate } from '../lib/dates'
 import { formatCurrency, formatDate } from '../lib/formatters'
 import { calculateLateFee } from '../lib/late-fee-calculator'
-import { fetchOpenInstallments, refreshOverdueAlerts, registerCollectionContact, renegotiateLoan } from '../services/finance-service'
+import { fetchOpenInstallments, getSelectOptions, refreshOverdueAlerts, registerCollectionContact, renegotiateLoan } from '../services/finance-service'
 import { getActiveLoanSettings } from '../services/finance-service'
+
+type CollectionFilter = 'overdue' | 'today' | 'upcoming' | 'all'
 
 export function CollectionsPage() {
   const { profile } = useAuth()
+  const options = useAsyncData(getSelectOptions, { routes: [], collectors: [], cashboxes: [] })
   const settingsLoader = useCallback(() => getActiveLoanSettings(profile?.id), [profile?.id])
   const settings = useAsyncData(settingsLoader, null)
   const loader = useCallback(async () => {
@@ -20,11 +23,33 @@ export function CollectionsPage() {
   }, [])
   const { data, loading, error, reload } = useAsyncData(loader, [])
   const [message, setMessage] = useState('')
+  const [filter, setFilter] = useState<CollectionFilter>('all')
+  const [routeId, setRouteId] = useState('')
+  const [collectorId, setCollectorId] = useState('')
+  const [term, setTerm] = useState('')
   const today = localIsoDate()
   const overdue = data.filter((item) => item.due_date < today)
+  const dueToday = data.filter((item) => item.due_date === today)
+  const upcoming = data.filter((item) => item.due_date > today)
+  const routeNames = useMemo(() => new Map(options.data.routes.map((route) => [route.id, route.name])), [options.data.routes])
+  const collectorNames = useMemo(() => new Map(options.data.collectors.map((collector) => [collector.id, collector.full_name])), [options.data.collectors])
+  const visibleItems = data.filter((item) => {
+    const matchesQueue =
+      filter === 'all'
+      || (filter === 'overdue' && item.due_date < today)
+      || (filter === 'today' && item.due_date === today)
+      || (filter === 'upcoming' && item.due_date > today)
+    const safeTerm = term.trim().toLowerCase()
+    const matchesTerm = !safeTerm || [item.client?.name, item.client?.document_number, item.client?.phone]
+      .some((value) => value?.toLowerCase().includes(safeTerm))
+    return matchesQueue
+      && (!routeId || item.loan?.route_id === routeId)
+      && (!collectorId || item.loan?.collector_id === collectorId)
+      && matchesTerm
+  })
 
   async function handleContact(itemId: string, kind: 'call' | 'promise' | 'renegotiate') {
-    const item = overdue.find((current) => current.id === itemId)
+    const item = data.find((current) => current.id === itemId)
     if (!profile || !item?.client || !item.loan) return
     try {
       const promiseDate = kind === 'promise' ? window.prompt('Data prometida para pagamento (AAAA-MM-DD)') : null
@@ -66,14 +91,34 @@ export function CollectionsPage() {
       {message ? <p className="form-message">{message}</p> : null}
       {error ? <p className="form-message">{error}</p> : null}
       {loading ? <div className="skeleton-card" /> : null}
+      <div className="summary-grid collection-summary-grid">
+        <CollectionMetric label="Atrasadas" value={overdue.length} icon={TriangleAlert} />
+        <CollectionMetric label="Vencendo hoje" value={dueToday.length} icon={CalendarClock} />
+        <CollectionMetric label="Proximas" value={upcoming.length} icon={CheckCircle2} />
+        <CollectionMetric label="Total em aberto" value={data.length} icon={CalendarClock} />
+      </div>
+      <section className="content-panel collection-toolbar">
+        <div className="segmented-control collection-filter">
+          <button className={filter === 'overdue' ? 'active' : ''} onClick={() => setFilter('overdue')} type="button">Atrasadas</button>
+          <button className={filter === 'today' ? 'active' : ''} onClick={() => setFilter('today')} type="button">Hoje</button>
+          <button className={filter === 'upcoming' ? 'active' : ''} onClick={() => setFilter('upcoming')} type="button">Proximas</button>
+          <button className={filter === 'all' ? 'active' : ''} onClick={() => setFilter('all')} type="button">Todas</button>
+        </div>
+        <div className="filter-grid-desktop">
+          <input onChange={(event) => setTerm(event.target.value)} placeholder="Nome, CPF ou telefone" value={term} />
+          <select onChange={(event) => setRouteId(event.target.value)} value={routeId}><option value="">Todas as rotas</option>{options.data.routes.map((route) => <option key={route.id} value={route.id}>{route.name}</option>)}</select>
+          <select onChange={(event) => setCollectorId(event.target.value)} value={collectorId}><option value="">Todos os cobradores</option>{options.data.collectors.map((collector) => <option key={collector.id} value={collector.id}>{collector.full_name}</option>)}</select>
+        </div>
+      </section>
       <div className="mobile-card-list always-grid">
-        {overdue.map((item) => {
+        {visibleItems.map((item) => {
           const fee = calculateLateFee({ remainingInstallmentAmount: item.amount - item.paid_amount, dailyLateFeePercent: settings.data?.late_fee_rate ?? 20, dueDate: item.due_date })
+          const queueLabel = item.due_date < today ? `${fee.daysLate} dias de atraso` : item.due_date === today ? 'Vence hoje' : 'A vencer'
           return (
             <article className="mobile-data-card" key={item.id}>
               <strong>{item.client?.name ?? 'Cliente'}</strong>
               <span>Parcela {item.installment_number} - vencimento {formatDate(item.due_date)}</span>
-              <small>{fee.daysLate} dias de atraso</small>
+              <small>{queueLabel} · {routeNames.get(item.loan?.route_id ?? '') ?? 'Sem rota'} · {collectorNames.get(item.loan?.collector_id ?? '') ?? 'Sem cobrador'}</small>
               <div className="mini-totals">
                 <b>{formatCurrency(item.amount)}</b>
                 <b>{formatCurrency(fee.lateFeeAmount)}</b>
@@ -90,6 +135,11 @@ export function CollectionsPage() {
           )
         })}
       </div>
+      {!loading && !visibleItems.length ? <div className="dashboard-empty"><CheckCircle2 size={22} /><strong>Nenhuma parcela nesta fila</strong><span>Use os filtros para consultar parcelas vencendo hoje, proximas ou todas em aberto.</span></div> : null}
     </section>
   )
+}
+
+function CollectionMetric({ label, value, icon: Icon }: { label: string; value: number; icon: typeof TriangleAlert }) {
+  return <article className="metric-card"><Icon size={20} /><span>{label}</span><strong>{value}</strong></article>
 }

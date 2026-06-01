@@ -782,6 +782,26 @@
     @apply grid gap-3 md:grid-cols-[repeat(4,minmax(0,1fr))_auto];
   }
 
+  .collection-toolbar {
+    @apply grid gap-4;
+  }
+
+  .collection-summary-grid {
+    @apply grid-cols-2 xl:grid-cols-4;
+  }
+
+  .collection-summary-grid .metric-card {
+    @apply min-h-0 gap-2 p-4;
+  }
+
+  .collection-summary-grid .metric-card strong {
+    @apply text-2xl;
+  }
+
+  .collection-filter {
+    @apply grid-cols-2 sm:grid-cols-4;
+  }
+
   .mobile-card-list {
     @apply grid gap-4 lg:hidden;
   }

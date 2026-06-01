@@ -310,7 +310,7 @@ export async function listWalletRows(filters: { status?: string; routeId?: strin
 }
 
 export async function fetchOpenInstallments(): Promise<Array<InstallmentRecord & { loan?: LoanRecord; client?: ClientRecord | null }>> {
-  const { data, error } = await supabase.from('installments').select('*').neq('status', 'paid').order('due_date').limit(100)
+  const { data, error } = await supabase.from('installments').select('*').not('status', 'in', '("paid","cancelled")').order('due_date').limit(100)
   if (error) throw error
   const installments = (data ?? []) as InstallmentRecord[]
   const loans = installments.length ? await fetchLoansByIds([...new Set(installments.map((installment) => installment.loan_id))]) : []
