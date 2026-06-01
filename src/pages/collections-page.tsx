@@ -1,64 +1,85 @@
 import { CalendarClock, CheckCircle2, MessageCircle, PhoneCall, TriangleAlert } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 
 import { useAuth } from '../contexts/auth-context'
 import { useAsyncData } from '../hooks/use-async-data'
 import { localIsoDate } from '../lib/dates'
 import { formatCurrency, formatDate } from '../lib/formatters'
 import { calculateLateFee } from '../lib/late-fee-calculator'
-import { fetchOpenInstallments, getSelectOptions, refreshOverdueAlerts, registerCollectionContact, renegotiateLoan } from '../services/finance-service'
+import { fetchCollectionInstallments, getSelectOptions, refreshOverdueAlerts, registerCollectionContact, renegotiateLoan } from '../services/finance-service'
 import { getActiveLoanSettings } from '../services/finance-service'
 
 type CollectionFilter = 'overdue' | 'today' | 'upcoming' | 'all'
+type CollectionStatus = 'open' | 'paid' | 'partial' | 'all'
 
 export function CollectionsPage() {
   const { profile } = useAuth()
+  const [searchParams] = useSearchParams()
   const options = useAsyncData(getSelectOptions, { routes: [], collectors: [], cashboxes: [] })
   const settingsLoader = useCallback(() => getActiveLoanSettings(profile?.id), [profile?.id])
   const settings = useAsyncData(settingsLoader, null)
   const loader = useCallback(async () => {
     await refreshOverdueAlerts()
-    return fetchOpenInstallments()
+    return fetchCollectionInstallments()
   }, [])
   const { data, loading, error, reload } = useAsyncData(loader, [])
   const [message, setMessage] = useState('')
-  const [filter, setFilter] = useState<CollectionFilter>('all')
+  const [filter, setFilter] = useState<CollectionFilter>(() => {
+    const queue = searchParams.get('queue')
+    return queue === 'overdue' || queue === 'today' || queue === 'upcoming' ? queue : 'all'
+  })
   const [routeId, setRouteId] = useState('')
   const [collectorId, setCollectorId] = useState('')
   const [term, setTerm] = useState('')
   const [selectedDate, setSelectedDate] = useState('')
+  const [status, setStatus] = useState<CollectionStatus>('open')
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
   const today = localIsoDate()
-  const overdue = data.filter((item) => item.due_date < today)
-  const dueToday = data.filter((item) => item.due_date === today)
-  const upcoming = data.filter((item) => item.due_date > today)
+  const isOpen = (item: (typeof data)[number]) => item.status !== 'paid'
   const routeNames = useMemo(() => new Map(options.data.routes.map((route) => [route.id, route.name])), [options.data.routes])
   const collectorNames = useMemo(() => new Map(options.data.collectors.map((collector) => [collector.id, collector.full_name])), [options.data.collectors])
   const dailyReceivables = useMemo(() => Array.from({ length: 7 }, (_, index) => {
     const date = new Date(`${today}T00:00:00`)
     date.setDate(date.getDate() + index)
     const isoDate = localIsoDate(date)
-    const installments = data.filter((item) => item.due_date === isoDate)
+    const installments = data.filter((item) => isOpen(item) && item.due_date === isoDate)
     return {
       date: isoDate,
       count: installments.length,
       total: installments.reduce((sum, item) => sum + Math.max(item.amount - item.paid_amount, 0), 0),
     }
   }), [data, today])
-  const visibleItems = data.filter((item) => {
+  const routeFilteredItems = data.filter((item) => {
+    const safeTerm = term.trim().toLowerCase()
+    const matchesTerm = !safeTerm || [item.client?.name, item.client?.document_number, item.client?.phone]
+      .some((value) => value?.toLowerCase().includes(safeTerm))
+    return (!routeId || item.loan?.route_id === routeId)
+      && (!collectorId || item.loan?.collector_id === collectorId)
+      && matchesTerm
+  })
+  const overdue = routeFilteredItems.filter((item) => isOpen(item) && item.due_date < today)
+  const dueToday = routeFilteredItems.filter((item) => isOpen(item) && item.due_date === today)
+  const upcoming = routeFilteredItems.filter((item) => isOpen(item) && item.due_date > today)
+  const totalPaid = routeFilteredItems.reduce((sum, item) => sum + item.paid_amount, 0)
+  const totalOpen = routeFilteredItems.reduce((sum, item) => sum + Math.max(item.amount - item.paid_amount, 0), 0)
+  const visibleItems = routeFilteredItems.filter((item) => {
     const matchesQueue =
       filter === 'all'
       || (filter === 'overdue' && item.due_date < today)
       || (filter === 'today' && item.due_date === today)
       || (filter === 'upcoming' && item.due_date > today)
-    const safeTerm = term.trim().toLowerCase()
-    const matchesTerm = !safeTerm || [item.client?.name, item.client?.document_number, item.client?.phone]
-      .some((value) => value?.toLowerCase().includes(safeTerm))
+    const matchesStatus =
+      status === 'all'
+      || (status === 'open' && isOpen(item))
+      || (status === 'paid' && item.status === 'paid')
+      || (status === 'partial' && item.status === 'partial')
     return matchesQueue
-      && (!routeId || item.loan?.route_id === routeId)
-      && (!collectorId || item.loan?.collector_id === collectorId)
+      && matchesStatus
       && (!selectedDate || item.due_date === selectedDate)
-      && matchesTerm
+      && (!startDate || item.due_date >= startDate)
+      && (!endDate || item.due_date <= endDate)
   })
 
   async function handleContact(itemId: string, kind: 'call' | 'promise' | 'renegotiate') {
@@ -108,7 +129,8 @@ export function CollectionsPage() {
         <CollectionMetric label="Atrasadas" value={overdue.length} icon={TriangleAlert} />
         <CollectionMetric label="Vencendo hoje" value={dueToday.length} icon={CalendarClock} />
         <CollectionMetric label="Proximas" value={upcoming.length} icon={CheckCircle2} />
-        <CollectionMetric label="Total em aberto" value={data.length} icon={CalendarClock} />
+        <CollectionMetric label="Total em aberto" value={formatCurrency(totalOpen)} icon={CalendarClock} />
+        <CollectionMetric label="Total recebido" value={formatCurrency(totalPaid)} icon={CheckCircle2} />
       </div>
       <section className="content-panel collection-toolbar">
         <div className="segmented-control collection-filter">
@@ -121,6 +143,9 @@ export function CollectionsPage() {
           <input onChange={(event) => setTerm(event.target.value)} placeholder="Nome, CPF ou telefone" value={term} />
           <select onChange={(event) => setRouteId(event.target.value)} value={routeId}><option value="">Todas as rotas</option>{options.data.routes.map((route) => <option key={route.id} value={route.id}>{route.name}</option>)}</select>
           <select onChange={(event) => setCollectorId(event.target.value)} value={collectorId}><option value="">Todos os afiliados</option>{options.data.collectors.map((affiliate) => <option key={affiliate.id} value={affiliate.id}>{affiliate.full_name}</option>)}</select>
+          <select onChange={(event) => setStatus(event.target.value as CollectionStatus)} value={status}><option value="open">Em aberto</option><option value="partial">Parciais</option><option value="paid">Pagas</option><option value="all">Todos os status</option></select>
+          <label>De<input onChange={(event) => setStartDate(event.target.value)} type="date" value={startDate} /></label>
+          <label>Ate<input onChange={(event) => setEndDate(event.target.value)} type="date" value={endDate} /></label>
         </div>
       </section>
       <section className="content-panel daily-receivables-panel">
@@ -140,8 +165,9 @@ export function CollectionsPage() {
       </section>
       <div className="mobile-card-list always-grid">
         {visibleItems.map((item) => {
-          const fee = calculateLateFee({ remainingInstallmentAmount: item.amount - item.paid_amount, dailyLateFeePercent: settings.data?.late_fee_rate ?? 20, dueDate: item.due_date })
-          const queueLabel = item.due_date < today ? `${fee.daysLate} dias de atraso` : item.due_date === today ? 'Vence hoje' : 'A vencer'
+          const remaining = Math.max(item.amount - item.paid_amount, 0)
+          const fee = calculateLateFee({ remainingInstallmentAmount: remaining, dailyLateFeePercent: settings.data?.late_fee_rate ?? 20, dueDate: item.due_date })
+          const queueLabel = item.status === 'paid' ? 'Paga' : item.due_date < today ? `${fee.daysLate} dias de atraso` : item.due_date === today ? 'Vence hoje' : 'A vencer'
           return (
             <article className="mobile-data-card" key={item.id}>
               <strong>{item.client?.name ?? 'Cliente'}</strong>
@@ -156,7 +182,8 @@ export function CollectionsPage() {
                 <button onClick={() => handleContact(item.id, 'call')} type="button"><PhoneCall size={17} />Contato</button>
                 <a className="button-link" href={`https://wa.me/${item.client?.whatsapp ?? item.client?.phone ?? ''}`} target="_blank" rel="noreferrer"><MessageCircle size={17} />WhatsApp</a>
                 <button className="secondary-button" onClick={() => handleContact(item.id, 'promise')} type="button">Promessa</button>
-                <Link className="button-link" to={`/pagamentos?installmentId=${item.id}`}>Pagamento</Link>
+                {item.status !== 'paid' ? <Link className="button-link" to={`/pagamentos?installmentId=${item.id}`}>Pagamento</Link> : null}
+                {item.client ? <Link className="button-link secondary-button" to={`/clientes/${item.client.id}`}>Historico</Link> : null}
                 <button className="secondary-button" onClick={() => handleContact(item.id, 'renegotiate')} type="button">Renegociar</button>
               </div>
             </article>
@@ -168,6 +195,6 @@ export function CollectionsPage() {
   )
 }
 
-function CollectionMetric({ label, value, icon: Icon }: { label: string; value: number; icon: typeof TriangleAlert }) {
+function CollectionMetric({ label, value, icon: Icon }: { label: string; value: number | string; icon: typeof TriangleAlert }) {
   return <article className="metric-card"><Icon size={20} /><span>{label}</span><strong>{value}</strong></article>
 }

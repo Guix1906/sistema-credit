@@ -11,6 +11,7 @@ export function CashboxesPage() {
   const cashboxes = useAsyncData(listCashboxes, [])
   const routes = useAsyncData(listRoutes, [])
   const [message, setMessage] = useState('')
+  const totalBalance = cashboxes.data.reduce((sum, cashbox) => sum + cashbox.current_balance, 0)
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -67,6 +68,14 @@ export function CashboxesPage() {
         {message ? <p className="form-message full-span">{message}</p> : null}
         <button className="full-span" type="submit">Criar caixa</button>
       </form>
+      <div className="summary-grid">
+        <article className="metric-card"><span>Saldo total</span><strong>{formatCurrency(totalBalance)}</strong></article>
+        <article className="metric-card"><span>Caixas abertos</span><strong>{cashboxes.data.length}</strong></article>
+        <article className="metric-card"><span>Caixas por rota</span><strong>{cashboxes.data.filter((cashbox) => cashbox.kind === 'route').length}</strong></article>
+      </div>
+      <div className="mobile-card-list">
+        {cashboxes.data.map((cashbox) => <article className="mobile-data-card" key={cashbox.id}><strong>{cashbox.name}</strong><span>{cashbox.kind ?? 'Caixa'} - {formatCurrency(cashbox.current_balance)}</span><small>{cashbox.allow_negative ? 'Permite saldo negativo' : 'Bloqueia saldo negativo'}</small><button className="secondary-button" onClick={() => closeCashbox(cashbox.id)} type="button">Fechar</button></article>)}
+      </div>
       <section className="content-panel desktop-table-wrap">
         <table>
           <thead><tr><th>Nome</th><th>Tipo</th><th>Saldo</th><th>Status</th><th>Negativo</th><th>Acao</th></tr></thead>

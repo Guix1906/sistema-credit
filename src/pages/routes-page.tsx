@@ -17,6 +17,13 @@ export function RoutesPage() {
   const affiliateNames = new Map(collectors.data.map((affiliate) => [affiliate.id, affiliate.full_name]))
   const [editing, setEditing] = useState<RouteRecord | null>(null)
   const [message, setMessage] = useState('')
+  const [term, setTerm] = useState('')
+  const [status, setStatus] = useState('all')
+  const visibleRoutes = routes.data.filter((route) => {
+    const safeTerm = term.trim().toLowerCase()
+    return (!safeTerm || [route.name, route.city, route.neighborhood].some((value) => value?.toLowerCase().includes(safeTerm)))
+      && (status === 'all' || (status === 'active' ? route.is_active : !route.is_active))
+  })
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -136,8 +143,12 @@ export function RoutesPage() {
           {editing ? <button className="secondary-button" onClick={() => setEditing(null)} type="button">Cancelar</button> : null}
         </div>
       </form>
+      <section className="content-panel filter-grid-desktop">
+        <input onChange={(event) => setTerm(event.target.value)} placeholder="Buscar rota, cidade ou bairro" value={term} />
+        <select onChange={(event) => setStatus(event.target.value)} value={status}><option value="all">Todos os status</option><option value="active">Ativas</option><option value="inactive">Arquivadas</option></select>
+      </section>
       <div className="mobile-card-list">
-        {routes.data.map((route) => (
+        {visibleRoutes.map((route) => (
           <article className="mobile-data-card" key={route.id}>
             <div>
               <strong>{route.name}</strong>
@@ -160,7 +171,7 @@ export function RoutesPage() {
       <section className="content-panel desktop-table-wrap">
         <table>
           <thead><tr><th>Nome</th><th>Local</th><th>Afiliado principal</th><th>Dias</th><th>Meta</th><th>Status</th><th>Acoes</th></tr></thead>
-          <tbody>{routes.data.map((route) => <tr key={route.id}><td><Link to={`/rotas/${route.id}`}>{route.name}</Link></td><td>{[route.neighborhood, route.city].filter(Boolean).join(', ') || '-'}</td><td>{route.collector_id ? affiliateNames.get(route.collector_id) ?? '-' : '-'}</td><td>{formatCollectionDays(route.collection_days)}</td><td>{formatCurrency(route.goal_amount)}</td><td>{route.is_active ? 'Ativa' : 'Arquivada'}</td><td><div className="button-row compact-actions"><button className="secondary-button" onClick={() => startEditing(route)} type="button"><Pencil size={15} />Editar</button><button className="secondary-button" onClick={() => toggleRoute(route)} type="button">{route.is_active ? <Archive size={15} /> : <RotateCcw size={15} />}{route.is_active ? 'Arquivar' : 'Reativar'}</button><button className="destructive-button" onClick={() => deleteRoute(route)} type="button"><Trash2 size={15} />Excluir</button></div></td></tr>)}</tbody>
+          <tbody>{visibleRoutes.map((route) => <tr key={route.id}><td><Link to={`/rotas/${route.id}`}>{route.name}</Link></td><td>{[route.neighborhood, route.city].filter(Boolean).join(', ') || '-'}</td><td>{route.collector_id ? affiliateNames.get(route.collector_id) ?? '-' : '-'}</td><td>{formatCollectionDays(route.collection_days)}</td><td>{formatCurrency(route.goal_amount)}</td><td>{route.is_active ? 'Ativa' : 'Arquivada'}</td><td><div className="button-row compact-actions"><button className="secondary-button" onClick={() => startEditing(route)} type="button"><Pencil size={15} />Editar</button><button className="secondary-button" onClick={() => toggleRoute(route)} type="button">{route.is_active ? <Archive size={15} /> : <RotateCcw size={15} />}{route.is_active ? 'Arquivar' : 'Reativar'}</button><button className="destructive-button" onClick={() => deleteRoute(route)} type="button"><Trash2 size={15} />Excluir</button></div></td></tr>)}</tbody>
         </table>
       </section>
     </section>

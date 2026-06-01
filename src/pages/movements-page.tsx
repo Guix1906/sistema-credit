@@ -11,6 +11,22 @@ export function MovementsPage() {
   const options = useAsyncData(getSelectOptions, { routes: [], collectors: [], cashboxes: [] })
   const movements = useAsyncData(listCashMovements, [])
   const [message, setMessage] = useState('')
+  const [term, setTerm] = useState('')
+  const [type, setType] = useState('')
+  const [cashboxId, setCashboxId] = useState('')
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
+  const visibleMovements = movements.data.filter((movement) => {
+    const safeTerm = term.trim().toLowerCase()
+    const date = movement.occurred_at.slice(0, 10)
+    return (!safeTerm || [movement.description, movement.cashbox?.name, movement.payment_id ? 'pagamento' : 'manual'].some((value) => value?.toLowerCase().includes(safeTerm)))
+      && (!type || movement.type === type)
+      && (!cashboxId || movement.cashbox_id === cashboxId)
+      && (!startDate || date >= startDate)
+      && (!endDate || date <= endDate)
+  })
+  const totalInflows = visibleMovements.filter((movement) => movement.type === 'inflow').reduce((sum, movement) => sum + movement.amount, 0)
+  const totalOutflows = visibleMovements.filter((movement) => movement.type === 'outflow').reduce((sum, movement) => sum + movement.amount, 0)
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -51,7 +67,7 @@ export function MovementsPage() {
           <p>Entradas, saidas, ajustes e estornos com saldo de caixa atualizado.</p>
         </div>
         <div className="button-row">
-          <button className="secondary-button" onClick={() => downloadCsv('movimentos.csv', movements.data)} type="button">Exportar CSV</button>
+          <button className="secondary-button" onClick={() => downloadCsv('movimentos.csv', visibleMovements)} type="button">Exportar CSV</button>
           <button className="action-button" onClick={() => window.print()} type="button">Exportar PDF</button>
         </div>
       </div>
@@ -67,9 +83,21 @@ export function MovementsPage() {
 
       {movements.error ? <p className="form-message">{movements.error}</p> : null}
       {movements.loading ? <div className="skeleton-card" /> : null}
+      <div className="summary-grid">
+        <article className="metric-card"><span>Entradas filtradas</span><strong>{formatCurrency(totalInflows)}</strong></article>
+        <article className="metric-card"><span>Saidas filtradas</span><strong>{formatCurrency(totalOutflows)}</strong></article>
+        <article className="metric-card"><span>Saldo do periodo</span><strong>{formatCurrency(totalInflows - totalOutflows)}</strong></article>
+      </div>
+      <section className="content-panel filter-grid-desktop">
+        <input onChange={(event) => setTerm(event.target.value)} placeholder="Buscar descricao, caixa ou origem" value={term} />
+        <select onChange={(event) => setType(event.target.value)} value={type}><option value="">Todos os tipos</option><option value="inflow">Entradas</option><option value="outflow">Saidas</option><option value="adjustment">Ajustes</option></select>
+        <select onChange={(event) => setCashboxId(event.target.value)} value={cashboxId}><option value="">Todos os caixas</option>{options.data.cashboxes.map((cashbox) => <option key={cashbox.id} value={cashbox.id}>{cashbox.name}</option>)}</select>
+        <label>De<input onChange={(event) => setStartDate(event.target.value)} type="date" value={startDate} /></label>
+        <label>Ate<input onChange={(event) => setEndDate(event.target.value)} type="date" value={endDate} /></label>
+      </section>
 
       <div className="mobile-card-list">
-        {movements.data.map((movement) => (
+        {visibleMovements.map((movement) => (
           <article className="mobile-data-card" key={movement.id}>
             <strong>{movement.cashbox?.name ?? 'Caixa'}</strong>
             <span>{movement.type} - {formatCurrency(movement.amount)}</span>
@@ -83,7 +111,7 @@ export function MovementsPage() {
         <table>
           <thead><tr><th>Data</th><th>Caixa</th><th>Tipo</th><th>Valor</th><th>Descricao</th><th>Status</th><th>Acoes</th></tr></thead>
           <tbody>
-            {movements.data.map((movement) => (
+            {visibleMovements.map((movement) => (
               <tr key={movement.id}>
                 <td>{formatDate(movement.occurred_at)}</td>
                 <td>{movement.cashbox?.name ?? '-'}</td>

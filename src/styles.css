@@ -249,7 +249,7 @@
   }
 
   .login-panel {
-    @apply grid w-full content-center rounded-none border-0 p-6 shadow-none sm:p-10 lg:min-h-[620px];
+    @apply grid min-w-0 w-full content-center rounded-none border-0 p-6 shadow-none sm:p-10 lg:min-h-[620px];
   }
 
   .login-heading {
@@ -1068,6 +1068,10 @@
 
   .dashboard-operational-card {
     @apply flex min-h-[82px] items-center gap-3 rounded-lg border border-border bg-card p-3 shadow-xs;
+  }
+
+  .dashboard-card-link {
+    @apply no-underline transition-transform hover:-translate-y-0.5;
   }
 
   .dashboard-operational-card > svg {

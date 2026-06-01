@@ -5,6 +5,7 @@ import { localIsoDate } from '../lib/dates'
 import { downloadCsv } from '../lib/exporters'
 import { formatCurrency } from '../lib/formatters'
 import { supabase } from '../lib/supabase'
+import { getSelectOptions, searchClients } from '../services/finance-service'
 
 type ReportType = 'geral' | 'rota' | 'cobrador' | 'cliente' | 'vendas' | 'pagas' | 'atrasadas' | 'inadimplencia' | 'lucro' | 'caixa' | 'gastos' | 'diario' | 'semanal' | 'mensal' | 'anual'
 
@@ -26,9 +27,13 @@ const reportLabels: Record<ReportType, string> = {
   anual: 'Anual',
 }
 
+type ReportFilters = { startDate: string; endDate: string; term: string; routeId: string; collectorId: string; clientId: string }
+
 export function ReportsPage() {
   const [reportType, setReportType] = useState<ReportType>('geral')
-  const [filters, setFilters] = useState({ startDate: '', endDate: '', term: '' })
+  const [filters, setFilters] = useState<ReportFilters>({ startDate: '', endDate: '', term: '', routeId: '', collectorId: '', clientId: '' })
+  const options = useAsyncData(getSelectOptions, { routes: [], collectors: [], cashboxes: [] })
+  const clients = useAsyncData(() => searchClients(''), [])
   const loader = useCallback(() => loadReport(reportType, filters), [reportType, filters])
   const { data, loading, error } = useAsyncData(loader, [] as Record<string, unknown>[])
   const totals = calculateTotals(data)
@@ -40,6 +45,9 @@ export function ReportsPage() {
       startDate: String(formData.get('startDate') ?? ''),
       endDate: String(formData.get('endDate') ?? ''),
       term: String(formData.get('term') ?? ''),
+      routeId: String(formData.get('routeId') ?? ''),
+      collectorId: String(formData.get('collectorId') ?? ''),
+      clientId: String(formData.get('clientId') ?? ''),
     })
   }
 
@@ -65,6 +73,9 @@ export function ReportsPage() {
         <input name="startDate" type="date" defaultValue={filters.startDate} />
         <input name="endDate" type="date" defaultValue={filters.endDate} />
         <input name="term" placeholder="Nome, rota, status ou texto" defaultValue={filters.term} />
+        <select name="routeId" defaultValue={filters.routeId}><option value="">Todas as rotas</option>{options.data.routes.map((route) => <option key={route.id} value={route.id}>{route.name}</option>)}</select>
+        <select name="collectorId" defaultValue={filters.collectorId}><option value="">Todos os afiliados</option>{options.data.collectors.map((collector) => <option key={collector.id} value={collector.id}>{collector.full_name}</option>)}</select>
+        <select name="clientId" defaultValue={filters.clientId}><option value="">Todos os clientes</option>{clients.data.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}</select>
         <button type="submit">Filtrar</button>
       </form>
 
@@ -90,7 +101,7 @@ export function ReportsPage() {
   )
 }
 
-async function loadReport(reportType: ReportType, filters: { startDate: string; endDate: string; term: string }): Promise<Record<string, unknown>[]> {
+async function loadReport(reportType: ReportType, filters: ReportFilters): Promise<Record<string, unknown>[]> {
   if (reportType === 'caixa') return selectTable('cash_movements', 'occurred_at', filters)
   if (reportType === 'gastos') return selectTable('expenses', 'expense_date', filters)
   if (reportType === 'pagas') return selectInstallments('paid', filters)
@@ -101,10 +112,13 @@ async function loadReport(reportType: ReportType, filters: { startDate: string; 
   return selectLoans(filters, reportType)
 }
 
-async function selectLoans(filters: { startDate: string; endDate: string; term: string }, reportType: ReportType): Promise<Record<string, unknown>[]> {
+async function selectLoans(filters: ReportFilters, reportType: ReportType): Promise<Record<string, unknown>[]> {
   let query = supabase.from('loans').select('*').order('issued_at', { ascending: false }).limit(500)
   if (filters.startDate) query = query.gte('issued_at', filters.startDate)
   if (filters.endDate) query = query.lte('issued_at', filters.endDate)
+  if (filters.routeId) query = query.eq('route_id', filters.routeId)
+  if (filters.collectorId) query = query.eq('collector_id', filters.collectorId)
+  if (filters.clientId) query = query.eq('client_id', filters.clientId)
   if (reportType === 'lucro') query = query.gt('interest_amount', 0)
   if (['diario', 'semanal', 'mensal', 'anual'].includes(reportType)) {
     const start = periodStart(reportType)
@@ -115,22 +129,22 @@ async function selectLoans(filters: { startDate: string; endDate: string; term: 
   return filterTerm(await enrichLoanRows((data ?? []) as Record<string, unknown>[]), filters.term)
 }
 
-async function selectInstallments(status: string, filters: { startDate: string; endDate: string; term: string }): Promise<Record<string, unknown>[]> {
+async function selectInstallments(status: string, filters: ReportFilters): Promise<Record<string, unknown>[]> {
   let query = supabase.from('installments').select('*').eq('status', status).order('due_date', { ascending: false }).limit(500)
   if (filters.startDate) query = query.gte('due_date', filters.startDate)
   if (filters.endDate) query = query.lte('due_date', filters.endDate)
   const { data, error } = await query
   if (error) throw error
-  return filterTerm(await enrichInstallmentRows((data ?? []) as Record<string, unknown>[]), filters.term)
+  return filterDimensions(filterTerm(await enrichInstallmentRows((data ?? []) as Record<string, unknown>[]), filters.term), filters)
 }
 
-async function selectOverdueInstallments(filters: { startDate: string; endDate: string; term: string }): Promise<Record<string, unknown>[]> {
+async function selectOverdueInstallments(filters: ReportFilters): Promise<Record<string, unknown>[]> {
   let query = supabase.from('installments').select('*').neq('status', 'paid').lt('due_date', localIsoDate()).order('due_date').limit(500)
   if (filters.startDate) query = query.gte('due_date', filters.startDate)
   if (filters.endDate) query = query.lte('due_date', filters.endDate)
   const { data, error } = await query
   if (error) throw error
-  return filterTerm(await enrichInstallmentRows((data ?? []) as Record<string, unknown>[]), filters.term)
+  return filterDimensions(filterTerm(await enrichInstallmentRows((data ?? []) as Record<string, unknown>[]), filters.term), filters)
 }
 
 async function enrichLoanRows(rows: Record<string, unknown>[]): Promise<Record<string, unknown>[]> {
@@ -175,16 +189,17 @@ function uniqueIds(rows: Record<string, unknown>[], key: string): string[] {
   return [...new Set(rows.map((row) => String(row[key] ?? '')).filter(Boolean))]
 }
 
-async function selectTable(table: string, dateColumn: string, filters: { startDate: string; endDate: string; term: string }): Promise<Record<string, unknown>[]> {
+async function selectTable(table: string, dateColumn: string, filters: ReportFilters): Promise<Record<string, unknown>[]> {
   let query = supabase.from(table).select('*').order(dateColumn, { ascending: false }).limit(500)
   if (filters.startDate) query = query.gte(dateColumn, filters.startDate)
   if (filters.endDate) query = query.lte(dateColumn, filters.endDate)
+  if (table === 'expenses' && filters.routeId) query = query.eq('route_id', filters.routeId)
   const { data, error } = await query
   if (error) throw error
   return filterTerm((data ?? []) as Record<string, unknown>[], filters.term)
 }
 
-async function aggregateBy(labelTable: 'routes' | 'profiles' | 'clients', key: 'route_id' | 'collector_id' | 'client_id', filters: { startDate: string; endDate: string; term: string }): Promise<Record<string, unknown>[]> {
+async function aggregateBy(labelTable: 'routes' | 'profiles' | 'clients', key: 'route_id' | 'collector_id' | 'client_id', filters: ReportFilters): Promise<Record<string, unknown>[]> {
   const loans = await selectLoans(filters, 'geral')
   const ids = [...new Set(loans.map((loan) => String(loan[key] ?? '')).filter(Boolean))]
   const labelColumns = labelTable === 'profiles' ? 'id, full_name' : 'id, name'
@@ -226,6 +241,12 @@ function filterTerm(rows: Record<string, unknown>[], term: string) {
   const safeTerm = term.trim().toLowerCase()
   if (!safeTerm) return rows
   return rows.filter((row) => JSON.stringify(row).toLowerCase().includes(safeTerm))
+}
+
+function filterDimensions(rows: Record<string, unknown>[], filters: ReportFilters) {
+  return rows.filter((row) => (!filters.routeId || row.route_id === filters.routeId)
+    && (!filters.collectorId || row.collector_id === filters.collectorId)
+    && (!filters.clientId || row.client_id === filters.clientId))
 }
 
 function formatValue(value: unknown): string {

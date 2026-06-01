@@ -62,6 +62,25 @@ export type CashMovementRecord = {
   reversed_movement_id?: string | null
 }
 
+export type EnrichedInstallment = InstallmentRecord & {
+  loan?: LoanRecord
+  client?: ClientRecord | null
+}
+
+export type RecentPaymentRecord = {
+  id: string
+  installment_id: string
+  loan_id: string
+  client_id: string
+  amount: number
+  late_fee_amount: number
+  paid_at: string
+  payment_method: string
+  notes: string | null
+  client?: ClientRecord | null
+  installment?: InstallmentRecord | null
+}
+
 export async function getSelectOptions(): Promise<SelectOptionRecord> {
   const [routes, collectors, cashboxes] = await Promise.all([listRoutes(), listCollectors(), listCashboxes()])
   return { routes: routes.filter((route) => route.is_active), collectors, cashboxes }
@@ -327,8 +346,18 @@ export async function listWalletRows(filters: { status?: string; routeId?: strin
   return term ? rows.filter((row) => row.client?.name.toLowerCase().includes(term)) : rows
 }
 
-export async function fetchOpenInstallments(): Promise<Array<InstallmentRecord & { loan?: LoanRecord; client?: ClientRecord | null }>> {
-  const { data, error } = await supabase.from('installments').select('*').not('status', 'in', '("paid","cancelled")').order('due_date').limit(100)
+export async function fetchOpenInstallments(): Promise<EnrichedInstallment[]> {
+  return fetchInstallmentsForQueue(false)
+}
+
+export async function fetchCollectionInstallments(): Promise<EnrichedInstallment[]> {
+  return fetchInstallmentsForQueue(true)
+}
+
+async function fetchInstallmentsForQueue(includePaid: boolean): Promise<EnrichedInstallment[]> {
+  let query = supabase.from('installments').select('*').neq('status', 'cancelled').order('due_date').limit(includePaid ? 500 : 200)
+  if (!includePaid) query = query.neq('status', 'paid')
+  const { data, error } = await query
   if (error) throw error
   const installments = (data ?? []) as InstallmentRecord[]
   const loans = installments.length ? await fetchLoansByIds([...new Set(installments.map((installment) => installment.loan_id))]) : []
@@ -339,6 +368,25 @@ export async function fetchOpenInstallments(): Promise<Array<InstallmentRecord &
     const loan = loanById.get(installment.loan_id)
     return { ...installment, loan, client: loan ? clientById.get(loan.client_id) ?? null : null }
   })
+}
+
+export async function listRecentPayments(): Promise<RecentPaymentRecord[]> {
+  const { data, error } = await supabase.from('payments').select('*').order('paid_at', { ascending: false }).limit(30)
+  if (error) throw error
+  const payments = (data ?? []) as RecentPaymentRecord[]
+  const clientIds = [...new Set(payments.map((payment) => payment.client_id))]
+  const installmentIds = [...new Set(payments.map((payment) => payment.installment_id))]
+  const [clients, installments] = await Promise.all([
+    clientIds.length ? fetchClientsByIds(clientIds) : [],
+    installmentIds.length ? fetchInstallmentsByIds(installmentIds) : [],
+  ])
+  const clientById = new Map(clients.map((client) => [client.id, client]))
+  const installmentById = new Map(installments.map((installment) => [installment.id, installment]))
+  return payments.map((payment) => ({
+    ...payment,
+    client: clientById.get(payment.client_id) ?? null,
+    installment: installmentById.get(payment.installment_id) ?? null,
+  }))
 }
 
 export async function refreshOverdueAlerts(): Promise<void> {
@@ -600,6 +648,12 @@ async function fetchLoansByIds(ids: string[]): Promise<LoanRecord[]> {
 
 async function fetchInstallmentsByLoanIds(ids: string[]): Promise<InstallmentRecord[]> {
   const { data, error } = await supabase.from('installments').select('*').in('loan_id', ids)
+  if (error) throw error
+  return (data ?? []) as InstallmentRecord[]
+}
+
+async function fetchInstallmentsByIds(ids: string[]): Promise<InstallmentRecord[]> {
+  const { data, error } = await supabase.from('installments').select('*').in('id', ids)
   if (error) throw error
   return (data ?? []) as InstallmentRecord[]
 }
