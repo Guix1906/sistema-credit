@@ -109,22 +109,10 @@ export function ClientDetailPage() {
   }
 
   async function deleteClient() {
-    if (profile?.role === 'admin') {
-      if (!data.client) return
-      const confirmation = window.prompt(`Excluir permanentemente o cliente "${data.client.name}" e todo o historico operacional relacionado? Esta acao nao pode ser desfeita. Digite EXCLUIR para confirmar.`)
-      if (confirmation !== 'EXCLUIR') return
-      const { error: purgeError } = await supabase.rpc('purge_client_permanently', { p_client_id: data.client.id })
-      if (purgeError) setMessage(purgeError.message)
-      else navigate('/clientes')
-      return
-    }
-    if (!data.client || !window.confirm(`Remover o cliente "${data.client.name}"? Se existir historico financeiro, o cliente sera arquivado para preservar os registros.`)) return
-    const { data: result, error: deleteError } = await supabase.rpc('delete_or_archive_client', { p_client_id: data.client.id })
+    if (!data.client || !window.confirm(`Excluir o cliente "${data.client.name}"? Esta acao nao pode ser desfeita.`)) return
+    const { error: deleteError } = await supabase.rpc('purge_client_permanently', { p_client_id: data.client.id })
     if (deleteError) setMessage(deleteError.message)
-    else if ((result as { mode?: string } | null)?.mode === 'archived') {
-      setMessage('Cliente arquivado. O historico financeiro foi preservado.')
-      reload()
-    } else navigate('/clientes')
+    else navigate('/clientes')
   }
 
   return (
@@ -139,7 +127,7 @@ export function ClientDetailPage() {
           <Link className="button-link" to="/vendas"><Plus size={17} />Nova venda</Link>
           <button className="secondary-button" onClick={() => setEditing((value) => !value)} type="button">Editar</button>
           <button className="secondary-button" onClick={toggleClient} type="button">{data.client?.is_active ? 'Desativar' : 'Ativar'}</button>
-          <button className="destructive-button" onClick={deleteClient} type="button"><Trash2 size={17} />{profile?.role === 'admin' ? 'Excluir permanentemente' : 'Excluir'}</button>
+          <button className="destructive-button" onClick={deleteClient} type="button"><Trash2 size={17} />Excluir</button>
         </div>
       </div>
 
