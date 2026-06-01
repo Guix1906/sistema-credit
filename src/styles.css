@@ -716,6 +716,14 @@
     @apply flex flex-wrap gap-3;
   }
 
+  .compact-actions {
+    @apply flex-nowrap gap-2;
+  }
+
+  .compact-actions .secondary-button {
+    @apply min-h-9 px-3 text-xs;
+  }
+
   .secondary-button,
   .button-link {
     @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-border bg-card px-[18px] font-bold text-foreground transition hover:bg-accent hover:text-accent-foreground;
