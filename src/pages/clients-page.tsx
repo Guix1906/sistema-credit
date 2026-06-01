@@ -59,6 +59,19 @@ export function ClientsPage() {
   }
 
   async function deleteClient(id: string, name: string) {
+    if (profile?.role === 'admin') {
+      const confirmation = window.prompt(`Excluir permanentemente o cliente "${name}" e todo o historico operacional relacionado? Esta acao nao pode ser desfeita. Digite EXCLUIR para confirmar.`)
+      if (confirmation !== 'EXCLUIR') return
+      try {
+        const { error: purgeError } = await supabase.rpc('purge_client_permanently', { p_client_id: id })
+        if (purgeError) throw purgeError
+        setMessage('Cliente e historico operacional excluidos permanentemente.')
+        reload()
+      } catch (purgeError) {
+        setMessage(getOperationErrorMessage(purgeError, 'excluir permanentemente o cliente'))
+      }
+      return
+    }
     if (!window.confirm(`Remover o cliente "${name}"? Se existir historico financeiro, o cliente sera arquivado para preservar os registros.`)) return
     try {
       const { data, error: deleteError } = await supabase.rpc('delete_or_archive_client', { p_client_id: id })
@@ -130,7 +143,7 @@ export function ClientsPage() {
             <div className="button-row">
               <Link className="button-link" to={`/clientes/${client.id}`}>Detalhes</Link>
               <Link className="button-link secondary-button" to={`/clientes/${client.id}?edit=1`}><Pencil size={16} />Editar</Link>
-              <button className="destructive-button" onClick={() => deleteClient(client.id, client.name)} type="button"><Trash2 size={16} />Excluir</button>
+              <button className="destructive-button" onClick={() => deleteClient(client.id, client.name)} type="button"><Trash2 size={16} />{profile?.role === 'admin' ? 'Excluir permanentemente' : 'Excluir'}</button>
               {client.whatsapp ? <a className="button-link" href={`https://wa.me/${client.whatsapp}`} rel="noreferrer" target="_blank"><MessageCircle size={17} />WhatsApp</a> : null}
             </div>
           </article>
@@ -144,7 +157,7 @@ export function ClientsPage() {
             {clients.map((client) => (
               <tr key={client.id}>
                 <td><Link to={`/clientes/${client.id}`}>{client.name}</Link></td><td>{client.phone ?? client.whatsapp ?? '-'}</td><td>{client.route_name ?? '-'}</td><td>{client.affiliate_name ?? '-'}</td>
-                <td>{formatCurrency(client.total_to_pay)}</td><td>{formatCurrency(client.total_paid)}</td><td>{formatCurrency(client.total_open)}</td><td>{client.status}</td><td><div className="button-row compact-actions"><Link className="button-link secondary-button" to={`/clientes/${client.id}?edit=1`}><Pencil size={15} />Editar</Link><button className="destructive-button" onClick={() => deleteClient(client.id, client.name)} type="button"><Trash2 size={15} />Excluir</button></div></td>
+                <td>{formatCurrency(client.total_to_pay)}</td><td>{formatCurrency(client.total_paid)}</td><td>{formatCurrency(client.total_open)}</td><td>{client.status}</td><td><div className="button-row compact-actions"><Link className="button-link secondary-button" to={`/clientes/${client.id}?edit=1`}><Pencil size={15} />Editar</Link><button className="destructive-button" onClick={() => deleteClient(client.id, client.name)} type="button"><Trash2 size={15} />{profile?.role === 'admin' ? 'Excluir permanentemente' : 'Excluir'}</button></div></td>
               </tr>
             ))}
           </tbody>
