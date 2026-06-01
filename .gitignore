@@ -1,0 +1,8 @@
+node_modules/
+dist/
+tsconfig.tsbuildinfo
+.env
+.env.local
+.env.*.local
+npm-debug.log*
+supabase/.temp/

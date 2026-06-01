@@ -1,0 +1,47 @@
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+
+const headers = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Content-Type': 'application/json',
+}
+
+Deno.serve(async (request) => {
+  if (request.method === 'OPTIONS') return new Response('ok', { headers })
+  try {
+    const url = Deno.env.get('SUPABASE_URL')
+    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+    if (!url || !serviceRoleKey) throw new Error('Supabase server credentials ausentes.')
+    const authorization = request.headers.get('Authorization') ?? ''
+    const admin = createClient(url, serviceRoleKey, { global: { headers: { Authorization: authorization } } })
+    const token = authorization.replace('Bearer ', '')
+    const { data: caller, error: callerError } = await admin.auth.getUser(token)
+    if (callerError || !caller.user) throw new Error('Sessao invalida.')
+    const { data: profile } = await admin.from('profiles').select('role').eq('id', caller.user.id).single()
+    if (profile?.role !== 'admin') throw new Error('Somente admin pode criar usuarios.')
+
+    const body = await request.json()
+    const { data, error } = await admin.auth.admin.createUser({
+      email: body.email,
+      password: body.password,
+      email_confirm: true,
+      user_metadata: { full_name: body.fullName },
+    })
+    if (error) throw error
+    const { error: profileError } = await admin.from('profiles').upsert({
+      id: data.user.id,
+      full_name: body.fullName,
+      email: body.email,
+      phone: body.phone || null,
+      cpf: body.cpf || null,
+      role: body.role,
+      route_id: body.routeId || null,
+      commission_rate: Number(body.commissionRate || 0),
+      is_active: true,
+    })
+    if (profileError) throw profileError
+    return new Response(JSON.stringify({ id: data.user.id }), { headers })
+  } catch (error) {
+    return new Response(JSON.stringify({ error: error instanceof Error ? error.message : 'Erro ao criar usuario.' }), { headers, status: 400 })
+  }
+})
