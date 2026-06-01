@@ -90,24 +90,12 @@ export function RoutesPage() {
     }
     if (!window.confirm(`Excluir definitivamente a rota "${route.name}"? Esta acao nao pode ser desfeita.`)) return
     try {
-      const [clients, loans, cashboxes, expenses, members] = await Promise.all([
-        supabase.from('clients').select('id').eq('route_id', route.id).limit(1),
-        supabase.from('loans').select('id').eq('route_id', route.id).limit(1),
-        supabase.from('cashboxes').select('id').eq('route_id', route.id).limit(1),
-        supabase.from('expenses').select('id').eq('route_id', route.id).limit(1),
-        supabase.from('profiles').select('id').eq('route_id', route.id).limit(1),
-      ])
-      const lookupError = clients.error ?? loans.error ?? cashboxes.error ?? expenses.error ?? members.error
-      if (lookupError) throw lookupError
-      if ([clients, loans, cashboxes, expenses, members].some((result) => result.data?.length)) {
-        setMessage('Esta rota possui vinculos. Use Arquivar para preservar clientes e historico financeiro.')
-        return
-      }
-      const { error } = await supabase.from('routes').delete().eq('id', route.id)
+      const { data, error } = await supabase.rpc('delete_empty_route', { p_route_id: route.id })
       if (error) throw error
-      await registerRouteAudit(profile, 'routes', route.id, 'delete', route, null)
+      const result = data as { clientes_desvinculados?: number; usuarios_desvinculados?: number } | null
       if (editing?.id === route.id) setEditing(null)
-      setMessage('Rota excluida definitivamente.')
+      const unlinked = Number(result?.clientes_desvinculados ?? 0) + Number(result?.usuarios_desvinculados ?? 0)
+      setMessage(unlinked ? `Rota excluida. ${unlinked} vinculo(s) simples foram desvinculados.` : 'Rota excluida definitivamente.')
       routes.reload()
     } catch (error) {
       setMessage(getOperationErrorMessage(error, 'excluir a rota'))
