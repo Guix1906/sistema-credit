@@ -110,6 +110,8 @@ export function getDashboardFallback(): PremiumDashboardData {
 }
 
 export async function getPremiumDashboardData(period: DashboardPeriod, referenceDate: string): Promise<PremiumDashboardData> {
+  const { error: refreshError } = await supabase.rpc('refresh_overdue_alerts')
+  if (refreshError) throw refreshError
   const [loansResult, installmentsResult, paymentsResult, alertsResult] = await Promise.all([
     supabase.from('loans').select('id, client_id, total_amount, interest_amount, paid_amount, remaining_amount, status, issued_at').order('issued_at', { ascending: false }).limit(1000),
     supabase.from('installments').select('id, loan_id, due_date, amount, paid_amount, status').neq('status', 'cancelled').order('due_date', { ascending: true }).limit(1000),

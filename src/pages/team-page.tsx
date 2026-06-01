@@ -73,7 +73,7 @@ export function TeamPage() {
       <div className="page-title-row">
         <div>
           <h1>Afiliados/Cobradores</h1>
-          <p>Edite perfis existentes. Novos acessos devem ser criados pelo cadastro/login do Supabase Auth.</p>
+          <p>Crie um acesso individual para cada responsavel e vincule sua rota. Cada usuario visualiza somente a carteira permitida para seu perfil.</p>
         </div>
         {profile?.role === 'admin' ? <button onClick={() => setCreating((value) => !value)} type="button">Novo usuario</button> : null}
       </div>

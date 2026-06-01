@@ -13,7 +13,7 @@ Deno.serve(async (request) => {
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
     if (!url || !serviceRoleKey) throw new Error('Supabase server credentials ausentes.')
     const authorization = request.headers.get('Authorization') ?? ''
-    const admin = createClient(url, serviceRoleKey, { global: { headers: { Authorization: authorization } } })
+    const admin = createClient(url, serviceRoleKey)
     const token = authorization.replace('Bearer ', '')
     const { data: caller, error: callerError } = await admin.auth.getUser(token)
     if (callerError || !caller.user) throw new Error('Sessao invalida.')
@@ -40,6 +40,10 @@ Deno.serve(async (request) => {
       is_active: true,
     })
     if (profileError) throw profileError
+    if (body.routeId && body.role === 'cobrador') {
+      const { error: routeError } = await admin.from('routes').update({ collector_id: data.user.id }).eq('id', body.routeId)
+      if (routeError) throw routeError
+    }
     return new Response(JSON.stringify({ id: data.user.id }), { headers })
   } catch (error) {
     return new Response(JSON.stringify({ error: error instanceof Error ? error.message : 'Erro ao criar usuario.' }), { headers, status: 400 })

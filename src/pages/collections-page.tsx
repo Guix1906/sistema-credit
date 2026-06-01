@@ -27,12 +27,24 @@ export function CollectionsPage() {
   const [routeId, setRouteId] = useState('')
   const [collectorId, setCollectorId] = useState('')
   const [term, setTerm] = useState('')
+  const [selectedDate, setSelectedDate] = useState('')
   const today = localIsoDate()
   const overdue = data.filter((item) => item.due_date < today)
   const dueToday = data.filter((item) => item.due_date === today)
   const upcoming = data.filter((item) => item.due_date > today)
   const routeNames = useMemo(() => new Map(options.data.routes.map((route) => [route.id, route.name])), [options.data.routes])
   const collectorNames = useMemo(() => new Map(options.data.collectors.map((collector) => [collector.id, collector.full_name])), [options.data.collectors])
+  const dailyReceivables = useMemo(() => Array.from({ length: 7 }, (_, index) => {
+    const date = new Date(`${today}T00:00:00`)
+    date.setDate(date.getDate() + index)
+    const isoDate = localIsoDate(date)
+    const installments = data.filter((item) => item.due_date === isoDate)
+    return {
+      date: isoDate,
+      count: installments.length,
+      total: installments.reduce((sum, item) => sum + Math.max(item.amount - item.paid_amount, 0), 0),
+    }
+  }), [data, today])
   const visibleItems = data.filter((item) => {
     const matchesQueue =
       filter === 'all'
@@ -45,6 +57,7 @@ export function CollectionsPage() {
     return matchesQueue
       && (!routeId || item.loan?.route_id === routeId)
       && (!collectorId || item.loan?.collector_id === collectorId)
+      && (!selectedDate || item.due_date === selectedDate)
       && matchesTerm
   })
 
@@ -108,6 +121,21 @@ export function CollectionsPage() {
           <input onChange={(event) => setTerm(event.target.value)} placeholder="Nome, CPF ou telefone" value={term} />
           <select onChange={(event) => setRouteId(event.target.value)} value={routeId}><option value="">Todas as rotas</option>{options.data.routes.map((route) => <option key={route.id} value={route.id}>{route.name}</option>)}</select>
           <select onChange={(event) => setCollectorId(event.target.value)} value={collectorId}><option value="">Todos os cobradores</option>{options.data.collectors.map((collector) => <option key={collector.id} value={collector.id}>{collector.full_name}</option>)}</select>
+        </div>
+      </section>
+      <section className="content-panel daily-receivables-panel">
+        <div className="page-title-row">
+          <div><h2>Recebimentos por dia</h2><p>Agenda dos proximos sete dias para organizar a rota.</p></div>
+          {selectedDate ? <button className="secondary-button" onClick={() => setSelectedDate('')} type="button">Limpar dia</button> : null}
+        </div>
+        <div className="daily-receivables-grid">
+          {dailyReceivables.map((day) => (
+            <button className={selectedDate === day.date ? 'active' : ''} key={day.date} onClick={() => { setSelectedDate(day.date); setFilter('all') }} type="button">
+              <span>{formatDate(day.date)}</span>
+              <strong>{formatCurrency(day.total)}</strong>
+              <small>{day.count} parcela{day.count === 1 ? '' : 's'}</small>
+            </button>
+          ))}
         </div>
       </section>
       <div className="mobile-card-list always-grid">

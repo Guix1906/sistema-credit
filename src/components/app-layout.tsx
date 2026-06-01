@@ -105,6 +105,8 @@ export function AppLayout() {
 type AlertSummary = { id: string; title: string; message: string; severity: string; created_at: string }
 
 async function listOpenAlerts(): Promise<AlertSummary[]> {
+  const { error: refreshError } = await supabase.rpc('refresh_overdue_alerts')
+  if (refreshError) throw refreshError
   const { data, error } = await supabase.from('alerts').select('id, title, message, severity, created_at').eq('status', 'open').order('created_at', { ascending: false }).limit(5)
   if (error) throw error
   return data ?? []
