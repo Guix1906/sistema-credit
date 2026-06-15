@@ -52,18 +52,18 @@ export const navigationGroups: NavigationGroup[] = [
   {
     label: 'Financeiro',
     items: [
-      { label: 'Caixas', path: '/caixas', icon: Banknote, roles: ['admin', 'gerente', 'manager'] },
-      { label: 'Movimentos', path: '/movimentos', icon: Boxes, roles: ['admin', 'gerente', 'manager'] },
-      { label: 'Gastos', path: '/gastos', icon: ReceiptText, roles: ['admin', 'gerente', 'manager', 'afiliado', 'cobrador', 'collector'] },
+      { label: 'Caixas', path: '/caixas', icon: Banknote, roles: ['admin', 'gerente'] },
+      { label: 'Movimentos', path: '/movimentos', icon: Boxes, roles: ['admin', 'gerente'] },
+      { label: 'Gastos', path: '/gastos', icon: ReceiptText, roles: ['admin', 'gerente', 'afiliado', 'cobrador'] },
     ],
   },
   {
     label: 'Configuracoes',
     items: [
       { label: 'Afiliados / Cobradores', path: '/equipes', icon: ShieldCheck, roles: ['admin'] },
-      { label: 'Rotas', path: '/rotas', icon: Map, roles: ['admin', 'gerente', 'manager'] },
-      { label: 'Configuracoes', path: '/configuracoes', icon: Settings, roles: ['admin', 'gerente', 'manager'] },
-      { label: 'Auditoria', path: '/auditoria', icon: FileClock, roles: ['admin', 'gerente', 'manager'] },
+      { label: 'Rotas', path: '/rotas', icon: Map, roles: ['admin', 'gerente'] },
+      { label: 'Configuracoes', path: '/configuracoes', icon: Settings, roles: ['admin', 'gerente'] },
+      { label: 'Auditoria', path: '/auditoria', icon: FileClock, roles: ['admin', 'gerente'] },
     ],
   },
 ]

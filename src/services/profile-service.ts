@@ -34,20 +34,10 @@ export async function ensureCurrentProfile(input: ProfileInput): Promise<Profile
     return primaryAttempt.data
   }
 
-  if (primaryAttempt.error.code !== '23514') {
-    throw primaryAttempt.error
-  }
-
-  const legacyAttempt = await insertProfile(input, 'operator')
-
-  if (legacyAttempt.error) {
-    throw legacyAttempt.error
-  }
-
-  return legacyAttempt.data
+  throw primaryAttempt.error
 }
 
-async function insertProfile(input: ProfileInput, role: 'atendente' | 'operator') {
+async function insertProfile(input: ProfileInput, role: 'atendente') {
   return supabase
     .from('profiles')
     .insert({

@@ -1,43 +1,49 @@
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&family=Playfair+Display:wght@600;700;800;900&display=swap");
 @import "tailwindcss";
 
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  --background: oklch(0.9892 0.0054 117.9205);
+  --background: oklch(0.9850 0.0060 247.0000);
   --foreground: oklch(0.2077 0.0398 265.7549);
   --card: oklch(1.0000 0 0);
   --card-foreground: oklch(0.2077 0.0398 265.7549);
   --popover: oklch(1.0000 0 0);
   --popover-foreground: oklch(0.2077 0.0398 265.7549);
-  --primary: oklch(0.8871 0.2122 128.5041);
-  --primary-foreground: oklch(0 0 0);
+  --primary: oklch(0.5250 0.1850 286.0000);
+  --primary-foreground: oklch(1.0000 0 0);
   --secondary: oklch(0.3717 0.0392 257.2870);
   --secondary-foreground: oklch(0.9842 0.0034 247.8575);
-  --muted: oklch(0.9683 0.0069 247.8956);
+  --muted: oklch(0.9635 0.0080 247.8956);
   --muted-foreground: oklch(0.5544 0.0407 257.4166);
-  --accent: oklch(0.9819 0.0181 155.8263);
-  --accent-foreground: oklch(0.4479 0.1083 151.3277);
+  --accent: oklch(0.9720 0.0190 332.0000);
+  --accent-foreground: oklch(0.4550 0.1450 332.0000);
   --destructive: oklch(0.6368 0.2078 25.3313);
   --destructive-foreground: oklch(1.0000 0 0);
-  --border: oklch(0.9288 0.0126 255.5078);
-  --input: oklch(0.9288 0.0126 255.5078);
-  --ring: oklch(0.8871 0.2122 128.5041);
-  --chart-1: oklch(0.8871 0.2122 128.5041);
+  --border: oklch(0.9150 0.0140 255.5078);
+  --input: oklch(0.9000 0.0140 255.5078);
+  --ring: oklch(0.6250 0.1650 286.0000);
+  --chart-1: oklch(0.5250 0.1850 286.0000);
   --chart-2: oklch(0.3717 0.0392 257.2870);
-  --chart-3: oklch(0.7227 0.1920 149.5793);
+  --chart-3: oklch(0.6100 0.1700 345.0000);
   --chart-4: oklch(0.5544 0.0407 257.4166);
   --chart-5: oklch(0.7107 0.0351 256.7878);
   --sidebar: oklch(1.0000 0 0);
   --sidebar-foreground: oklch(0.2077 0.0398 265.7549);
-  --sidebar-primary: oklch(0.8871 0.2122 128.5041);
-  --sidebar-primary-foreground: oklch(0 0 0);
+  --sidebar-primary: oklch(0.5250 0.1850 286.0000);
+  --sidebar-primary-foreground: oklch(1.0000 0 0);
   --sidebar-accent: oklch(0.9842 0.0034 247.8575);
   --sidebar-accent-foreground: oklch(0.2077 0.0398 265.7549);
   --sidebar-border: oklch(0.9683 0.0069 247.8956);
-  --sidebar-ring: oklch(0.8871 0.2122 128.5041);
-  --font-sans: Inter, system-ui, sans-serif;
-  --font-serif: Georgia, serif;
+  --sidebar-ring: oklch(0.6250 0.1650 286.0000);
+  --surface: oklch(0.9970 0.0020 247.0000);
+  --surface-subtle: oklch(0.9760 0.0060 247.0000);
+  --surface-strong: oklch(0.9470 0.0120 247.0000);
+  --focus-shadow: 0 0 0 4px color-mix(in oklch, var(--ring) 18%, transparent);
+  --transition-fast: 140ms ease;
+  --transition-normal: 220ms ease;
+  --font-sans: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-serif: "Playfair Display", Georgia, "Times New Roman", serif;
   --font-mono: "JetBrains Mono", monospace;
   --radius: 1rem;
   --shadow-2xs: 0px 8px 20px 0px hsl(0 0% 0% / 0.03);
@@ -52,8 +58,8 @@
   --spacing: 0.25rem;
   --dashboard-blue: oklch(0.625 0.16 252);
   --dashboard-blue-soft: oklch(0.965 0.024 252);
-  --dashboard-green: oklch(0.58 0.145 151);
-  --dashboard-green-soft: oklch(0.966 0.03 151);
+  --dashboard-rose: oklch(0.58 0.155 342);
+  --dashboard-rose-soft: oklch(0.968 0.026 342);
   --dashboard-violet: oklch(0.61 0.15 300);
   --dashboard-violet-soft: oklch(0.968 0.025 300);
   --dashboard-amber: oklch(0.68 0.15 68);
@@ -69,32 +75,32 @@
   --card-foreground: oklch(0.9842 0.0034 247.8575);
   --popover: oklch(0.2077 0.0398 265.7549);
   --popover-foreground: oklch(0.9842 0.0034 247.8575);
-  --primary: oklch(0.8871 0.2122 128.5041);
-  --primary-foreground: oklch(0 0 0);
+  --primary: oklch(0.7200 0.1450 286.0000);
+  --primary-foreground: oklch(0.1288 0.0406 264.6952);
   --secondary: oklch(0.2795 0.0368 260.0310);
   --secondary-foreground: oklch(0.9842 0.0034 247.8575);
   --muted: oklch(0.2795 0.0368 260.0310);
   --muted-foreground: oklch(0.7107 0.0351 256.7878);
-  --accent: oklch(0.3925 0.0896 152.5353);
-  --accent-foreground: oklch(0.8871 0.2122 128.5041);
+  --accent: oklch(0.3020 0.0750 332.0000);
+  --accent-foreground: oklch(0.9000 0.0750 332.0000);
   --destructive: oklch(0.4437 0.1613 26.8994);
   --destructive-foreground: oklch(1.0000 0 0);
   --border: oklch(0.2795 0.0368 260.0310);
   --input: oklch(0.2795 0.0368 260.0310);
-  --ring: oklch(0.8871 0.2122 128.5041);
-  --chart-1: oklch(0.8871 0.2122 128.5041);
+  --ring: oklch(0.7200 0.1450 286.0000);
+  --chart-1: oklch(0.7200 0.1450 286.0000);
   --chart-2: oklch(0.6231 0.1880 259.8145);
-  --chart-3: oklch(0.7227 0.1920 149.5793);
+  --chart-3: oklch(0.7300 0.1500 345.0000);
   --chart-4: oklch(0.6268 0.2325 303.9004);
   --chart-5: oklch(0.7686 0.1647 70.0804);
   --sidebar: oklch(0.1288 0.0406 264.6952);
   --sidebar-foreground: oklch(0.9842 0.0034 247.8575);
-  --sidebar-primary: oklch(0.8871 0.2122 128.5041);
-  --sidebar-primary-foreground: oklch(0 0 0);
+  --sidebar-primary: oklch(0.7200 0.1450 286.0000);
+  --sidebar-primary-foreground: oklch(0.1288 0.0406 264.6952);
   --sidebar-accent: oklch(0.2795 0.0368 260.0310);
   --sidebar-accent-foreground: oklch(0.9842 0.0034 247.8575);
   --sidebar-border: oklch(0.2795 0.0368 260.0310);
-  --sidebar-ring: oklch(0.8871 0.2122 128.5041);
+  --sidebar-ring: oklch(0.7200 0.1450 286.0000);
   --shadow-2xs: 0px 10px 25px 0px hsl(0 0% 0% / 0.20);
   --shadow-xs: 0px 10px 25px 0px hsl(0 0% 0% / 0.20);
   --shadow-sm: 0px 10px 25px 0px hsl(0 0% 0% / 0.40), 0px 1px 2px -1px hsl(0 0% 0% / 0.40);
@@ -171,17 +177,44 @@
   body {
     @apply bg-background text-foreground font-sans antialiased;
     margin: 0;
+    min-width: 0;
+    background:
+      linear-gradient(180deg, var(--background) 0%, color-mix(in oklch, var(--background) 86%, var(--surface-strong)) 100%);
+    font-family: var(--font-sans);
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 
   button,
-  input {
+  input,
+  select,
+  textarea {
     font: inherit;
+  }
+
+  a {
+    @apply text-inherit;
   }
 
   h1,
   h2,
   p {
     margin: 0;
+  }
+
+  h1,
+  h2 {
+    font-family: var(--font-serif);
+    font-weight: 800;
+  }
+
+  code,
+  kbd,
+  samp,
+  pre {
+    font-family: var(--font-mono);
   }
 }
 
@@ -191,15 +224,18 @@
   }
 
   .auth-shell::before {
-    @apply pointer-events-none absolute inset-x-0 top-0 h-1/2 bg-accent/60 content-[''];
+    @apply pointer-events-none absolute inset-x-0 top-0 h-1/2 bg-accent/45 content-[''];
   }
 
   .login-shell {
-    @apply relative z-10 grid w-full max-w-[1040px] overflow-hidden rounded-xl border border-border bg-card shadow-xl lg:grid-cols-[1.1fr_0.9fr];
+    @apply relative z-10 grid w-full max-w-[1040px] overflow-hidden rounded-lg border border-border bg-card shadow-xl lg:grid-cols-[1.1fr_0.9fr];
+    box-shadow: 0 24px 80px hsl(220 35% 18% / 0.13);
   }
 
   .login-brand-panel {
     @apply hidden min-h-[620px] content-between bg-secondary p-10 text-secondary-foreground lg:grid;
+    background:
+      linear-gradient(145deg, color-mix(in oklch, var(--secondary) 94%, black) 0%, var(--secondary) 100%);
   }
 
   .login-brand-mark {
@@ -223,7 +259,7 @@
   }
 
   .login-feature-grid article {
-    @apply rounded-lg border border-white/10 bg-white/5 p-4;
+    @apply rounded-md border border-white/10 bg-white/5 p-4;
   }
 
   .login-feature-grid svg {
@@ -246,6 +282,7 @@
   .login-panel,
   .content-panel {
     @apply rounded-lg border border-border bg-card text-card-foreground shadow-md;
+    box-shadow: 0 12px 35px hsl(220 35% 18% / 0.055);
   }
 
   .login-panel {
@@ -270,7 +307,7 @@
 
   form,
   label {
-    @apply grid gap-2.5;
+    @apply grid min-w-0 gap-2.5;
   }
 
   form {
@@ -278,12 +315,12 @@
   }
 
   input {
-    @apply min-h-11 rounded-md border border-input bg-background px-3 text-foreground outline-none transition;
+    @apply min-h-11 w-full min-w-0 max-w-full rounded-md border border-input bg-background px-3 text-foreground outline-none transition;
   }
 
   select,
   textarea {
-    @apply min-h-11 rounded-md border border-input bg-background px-3 py-2 text-foreground outline-none transition;
+    @apply min-h-11 w-full min-w-0 max-w-full rounded-md border border-input bg-background px-3 py-2 text-foreground outline-none transition;
   }
 
   textarea {
@@ -293,27 +330,54 @@
   input:focus,
   select:focus,
   textarea:focus {
-    @apply border-ring ring-2 ring-ring/20;
+    @apply border-ring;
+    box-shadow: var(--focus-shadow);
   }
 
   .input-with-icon {
-    @apply grid min-h-12 grid-cols-[auto_1fr] items-center gap-3 rounded-md border border-input bg-background px-3 text-muted-foreground transition focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/20;
+    @apply grid min-h-12 min-w-0 grid-cols-[auto_1fr] items-center gap-3 rounded-md border border-input bg-background px-3 text-muted-foreground transition focus-within:border-ring;
+  }
+
+  .input-with-icon:focus-within {
+    box-shadow: var(--focus-shadow);
   }
 
   .input-with-icon input {
-    @apply min-h-0 border-0 bg-transparent px-0 ring-0;
+    @apply min-h-0 border-0 bg-transparent px-0 shadow-none ring-0;
   }
 
   button {
-    @apply min-h-11 cursor-pointer rounded-md bg-primary px-[18px] font-bold text-primary-foreground transition hover:brightness-95 disabled:cursor-wait disabled:opacity-65;
+    @apply inline-flex min-h-11 max-w-full cursor-pointer items-center justify-center gap-2 rounded-md bg-primary px-[18px] font-bold text-primary-foreground transition disabled:cursor-not-allowed disabled:opacity-65;
+    transition-duration: var(--transition-fast);
+    box-shadow: 0 7px 18px color-mix(in oklch, var(--primary) 18%, transparent);
+  }
+
+  button:hover:not(:disabled) {
+    filter: brightness(0.985);
+    transform: translateY(-1px);
+  }
+
+  button:active:not(:disabled) {
+    transform: translateY(0);
+  }
+
+  button:focus-visible,
+  a:focus-visible {
+    @apply outline-none;
+    box-shadow: var(--focus-shadow);
+  }
+
+  button svg,
+  a svg {
+    @apply shrink-0;
   }
 
   .link-button {
-    @apply bg-transparent text-accent-foreground hover:bg-accent;
+    @apply bg-transparent text-accent-foreground shadow-none hover:bg-accent;
   }
 
   .form-message {
-    @apply m-0 text-destructive;
+    @apply m-0 rounded-md border border-border bg-muted px-3 py-2 text-sm font-semibold text-foreground;
   }
 
   .access-block {
@@ -335,14 +399,15 @@
 
   .sidebar {
     @apply sticky top-0 hidden h-screen flex-col border-r border-sidebar-border bg-sidebar px-3 py-4 text-sidebar-foreground lg:flex;
+    box-shadow: 8px 0 30px hsl(220 35% 18% / 0.035);
   }
 
   .brand-block {
-    @apply flex items-center gap-3 px-2 py-2;
+    @apply flex min-w-0 items-center gap-3 px-2 py-2;
   }
 
   .brand-block strong {
-    @apply block text-sm font-extrabold text-sidebar-foreground;
+    @apply block truncate text-sm font-extrabold text-sidebar-foreground;
   }
 
   .brand-block span:not(.brand-mark) {
@@ -350,11 +415,11 @@
   }
 
   .brand-mark {
-    @apply grid size-10 place-items-center rounded-lg bg-sidebar-primary text-sm font-black text-sidebar-primary-foreground;
+    @apply grid size-10 shrink-0 place-items-center rounded-md bg-sidebar-primary text-sm font-black text-sidebar-primary-foreground shadow-sm;
   }
 
   .brand-logo {
-    @apply size-10 rounded-lg object-cover;
+    @apply size-10 shrink-0 rounded-md object-cover;
   }
 
   .sidebar-nav,
@@ -363,11 +428,16 @@
   }
 
   .nav-item {
-    @apply flex min-h-11 items-center gap-3 rounded-md px-3 text-sm font-semibold text-muted-foreground transition hover:bg-sidebar-accent hover:text-sidebar-accent-foreground;
+    @apply relative flex min-h-11 items-center gap-3 rounded-md px-3 text-sm font-semibold text-muted-foreground transition hover:bg-sidebar-accent hover:text-sidebar-accent-foreground;
+    transition-duration: var(--transition-fast);
   }
 
   .nav-item.active {
-    @apply bg-sidebar-primary text-sidebar-primary-foreground shadow-xs;
+    @apply bg-secondary text-secondary-foreground shadow-sm;
+  }
+
+  .nav-item.active::before {
+    @apply absolute left-1 top-1/2 h-6 w-1 -translate-y-1/2 rounded-full bg-primary content-[''];
   }
 
   .main-column {
@@ -375,7 +445,8 @@
   }
 
   .topbar {
-    @apply sticky top-0 z-20 grid min-h-[72px] grid-cols-[auto_1fr_auto] items-center gap-4 border-b border-border bg-card/95 px-4 text-card-foreground backdrop-blur lg:grid-cols-[minmax(160px,220px)_minmax(260px,1fr)_auto] lg:px-7;
+    @apply sticky top-0 z-20 grid min-h-[72px] grid-cols-[auto_1fr_auto] items-center gap-4 border-b border-border bg-card/90 px-4 text-card-foreground backdrop-blur-xl lg:grid-cols-[minmax(160px,220px)_minmax(260px,1fr)_auto] lg:px-7;
+    box-shadow: 0 10px 28px hsl(220 35% 18% / 0.045);
   }
 
   .route-heading {
@@ -391,7 +462,12 @@
   }
 
   .topbar-search {
-    @apply hidden min-h-11 max-w-[520px] grid-cols-[auto_1fr] items-center gap-2 rounded-md border border-input bg-background px-3 text-muted-foreground lg:grid;
+    @apply hidden min-h-11 max-w-[560px] grid-cols-[auto_1fr] items-center gap-2 rounded-md border border-input bg-background px-3 text-muted-foreground transition lg:grid;
+  }
+
+  .topbar-search:focus-within {
+    @apply border-ring;
+    box-shadow: var(--focus-shadow);
   }
 
   .topbar-search input {
@@ -403,7 +479,7 @@
   }
 
   .icon-button {
-    @apply relative grid size-11 min-h-11 place-items-center rounded-md border border-border bg-card p-0 text-foreground hover:bg-accent hover:text-accent-foreground;
+    @apply relative grid size-11 min-h-11 place-items-center rounded-md border border-border bg-card p-0 text-foreground shadow-none hover:bg-accent hover:text-accent-foreground;
   }
 
   .mobile-menu-button {
@@ -416,6 +492,7 @@
 
   .notification-panel {
     @apply absolute right-4 top-[64px] z-40 grid w-[min(92vw,360px)] gap-3 rounded-lg border border-border bg-card p-4 text-card-foreground shadow-xl;
+    animation: panel-in var(--transition-normal);
   }
 
   .notification-panel article {
@@ -461,6 +538,7 @@
 
   .profile-panel {
     @apply absolute right-0 top-[calc(100%+8px)] z-40 grid w-[min(88vw,290px)] gap-3 rounded-lg border border-border bg-card p-3 text-card-foreground shadow-xl;
+    animation: panel-in var(--transition-normal);
   }
 
   .profile-panel-heading {
@@ -494,11 +572,11 @@
   }
 
   .page-shell {
-    @apply mx-auto w-full max-w-[1440px] px-4 py-5 pb-28 sm:px-6 lg:px-8 lg:pb-8;
+    @apply mx-auto w-full max-w-[1440px] px-4 py-6 pb-28 sm:px-6 lg:px-8 lg:pb-9;
   }
 
   .page-stack {
-    @apply min-w-0 grid gap-5;
+    @apply min-w-0 grid gap-6;
   }
 
   .page-title-row {
@@ -506,31 +584,49 @@
   }
 
   .page-title-row h1 {
-    @apply text-2xl font-extrabold text-foreground sm:text-3xl;
+    @apply text-2xl font-black leading-tight text-foreground sm:text-3xl;
   }
 
   .page-title-row p {
-    @apply mt-2 max-w-[720px] text-sm text-muted-foreground;
+    @apply mt-2 max-w-[760px] text-sm leading-6 text-muted-foreground;
   }
 
   .action-button {
-    @apply inline-flex min-h-12 items-center justify-center gap-2 rounded-md bg-secondary px-4 text-secondary-foreground sm:min-h-11;
+    @apply inline-flex min-h-12 items-center justify-center gap-2 rounded-md bg-secondary px-4 text-secondary-foreground shadow-sm sm:min-h-11;
   }
 
   .summary-grid {
-    @apply grid gap-4 sm:grid-cols-2 xl:grid-cols-3;
+    @apply grid min-w-0 gap-4 sm:grid-cols-2 xl:grid-cols-3;
   }
 
   .metric-card {
-    @apply grid min-h-[148px] gap-3 rounded-lg border border-border bg-card p-5 text-card-foreground shadow-sm sm:min-h-[132px];
+    @apply grid min-h-[148px] min-w-0 gap-3 rounded-lg border border-border bg-card p-5 text-card-foreground shadow-sm transition sm:min-h-[132px];
+    background: linear-gradient(180deg, var(--surface) 0%, var(--card) 100%);
+  }
+
+  .metric-card:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 16px 38px hsl(220 35% 18% / 0.07);
   }
 
   .metric-card span {
-    @apply text-sm font-bold text-muted-foreground;
+    @apply text-sm font-bold leading-5 text-muted-foreground;
   }
 
   .metric-card strong {
-    @apply text-3xl font-black text-foreground;
+    @apply break-words text-3xl font-black leading-tight text-foreground;
+  }
+
+  .metric-card strong,
+  .selected-client-summary strong,
+  .sale-detail-metric > strong:not(.soft-badge),
+  .mini-totals b,
+  .dashboard-operational-card strong,
+  .dashboard-primary-kpi strong,
+  .dashboard-kpi-card strong {
+    font-family: var(--font-sans);
+    font-feature-settings: "tnum", "cv02", "cv03", "cv04", "cv11";
+    font-variant-numeric: tabular-nums;
   }
 
   .metric-card small,
@@ -539,11 +635,12 @@
   }
 
   .content-panel {
-    @apply min-w-0 p-5 sm:p-8;
+    @apply min-w-0 p-5 sm:p-7;
+    background: linear-gradient(180deg, var(--surface) 0%, var(--card) 100%);
   }
 
   .content-panel h2 {
-    @apply mb-5 text-xl font-extrabold text-foreground;
+    @apply mb-5 text-xl font-black leading-tight text-foreground;
   }
 
   .form-layout {
@@ -551,7 +648,15 @@
   }
 
   .form-grid {
-    @apply grid gap-4 sm:grid-cols-2;
+    @apply grid min-w-0 gap-4 sm:grid-cols-2;
+  }
+
+  .form-grid > *,
+  .filter-grid-desktop > *,
+  .sale-client-fields > *,
+  .sale-loan-fields > *,
+  .compact-client-fields > * {
+    @apply min-w-0;
   }
 
   .sales-form-layout {
@@ -560,7 +665,7 @@
 
   .sale-client-panel,
   .sale-loan-panel {
-    @apply grid gap-5 p-5 sm:p-6;
+    @apply grid min-w-0 gap-5 p-5 sm:p-6;
   }
 
   .sale-loan-panel {
@@ -572,15 +677,15 @@
   }
 
   .sale-section-heading h2 {
-    @apply text-lg font-extrabold text-foreground;
+    @apply text-lg font-black leading-tight text-foreground;
   }
 
   .sale-section-heading p {
-    @apply mt-1 text-xs text-muted-foreground;
+    @apply mt-1 text-xs leading-5 text-muted-foreground;
   }
 
   .sale-section-icon {
-    @apply grid size-10 shrink-0 place-items-center rounded-md bg-accent text-accent-foreground;
+    @apply grid size-10 shrink-0 place-items-center rounded-md bg-accent text-accent-foreground shadow-xs;
   }
 
   .sale-finance-icon {
@@ -601,7 +706,11 @@
   }
 
   .sale-search-input {
-    @apply grid min-h-11 grid-cols-[auto_1fr] items-center gap-2 rounded-md border border-input bg-background px-3 text-muted-foreground focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/20;
+    @apply grid min-h-11 min-w-0 grid-cols-[auto_1fr] items-center gap-2 rounded-md border border-input bg-background px-3 text-muted-foreground transition focus-within:border-ring;
+  }
+
+  .sale-search-input:focus-within {
+    box-shadow: var(--focus-shadow);
   }
 
   .sale-search-input input {
@@ -609,7 +718,7 @@
   }
 
   .selected-client-summary {
-    @apply flex min-h-[72px] items-center gap-3 rounded-md border border-border bg-accent/60 p-3;
+    @apply flex min-h-[72px] min-w-0 items-center gap-3 rounded-md border border-border bg-accent/60 p-3;
   }
 
   .selected-client-avatar {
@@ -625,12 +734,12 @@
   }
 
   .sale-helper-copy {
-    @apply rounded-md bg-muted p-3 text-xs font-semibold text-muted-foreground;
+    @apply rounded-md border border-border bg-muted p-3 text-xs font-semibold leading-5 text-muted-foreground;
   }
 
   .sale-client-fields,
   .sale-loan-fields {
-    @apply grid gap-3.5 sm:grid-cols-2;
+    @apply grid min-w-0 gap-3.5 sm:grid-cols-2;
   }
 
   .sale-client-fields {
@@ -711,7 +820,8 @@
   }
 
   .sale-detail-metric {
-    @apply grid min-h-[108px] content-between gap-3 rounded-lg border border-border bg-card p-4 shadow-sm;
+    @apply grid min-h-[108px] min-w-0 content-between gap-3 rounded-lg border border-border bg-card p-4 shadow-sm;
+    background: linear-gradient(180deg, var(--surface) 0%, var(--card) 100%);
   }
 
   .sale-detail-metric span {
@@ -759,11 +869,11 @@
   }
 
   .button-row {
-    @apply flex flex-wrap gap-3;
+    @apply flex min-w-0 flex-wrap gap-3;
   }
 
   .compact-actions {
-    @apply flex-nowrap gap-2;
+    @apply flex-nowrap items-center gap-2;
   }
 
   .compact-actions .secondary-button {
@@ -772,15 +882,20 @@
 
   .secondary-button,
   .button-link {
-    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-border bg-card px-[18px] font-bold text-foreground transition hover:bg-accent hover:text-accent-foreground;
+    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-border bg-card px-[18px] font-bold text-foreground shadow-none transition hover:bg-accent hover:text-accent-foreground;
   }
 
   .destructive-button {
-    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-destructive/25 bg-destructive/10 px-[18px] font-bold text-destructive transition hover:bg-destructive hover:text-destructive-foreground;
+    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-destructive/25 bg-destructive/10 px-[18px] font-bold text-destructive shadow-none transition hover:bg-destructive hover:text-destructive-foreground;
   }
 
   .compact-actions .destructive-button {
     @apply min-h-9 px-3 text-xs;
+  }
+
+  .compact-actions .secondary-button,
+  .compact-actions .destructive-button {
+    @apply shrink-0 whitespace-nowrap;
   }
 
   .result-panel {
@@ -788,11 +903,11 @@
   }
 
   .result-grid {
-    @apply grid gap-3 sm:grid-cols-3;
+    @apply grid min-w-0 gap-3 sm:grid-cols-3;
   }
 
   .result-grid article {
-    @apply rounded-md border border-border bg-background p-4;
+    @apply min-w-0 rounded-md border border-border bg-background p-4;
   }
 
   .result-grid span {
@@ -817,15 +932,15 @@
   }
 
   .segmented-control {
-    @apply grid rounded-md border border-border bg-background p-1 sm:col-span-2 sm:grid-cols-2;
+    @apply grid min-w-0 rounded-md border border-border bg-muted p-1 sm:col-span-2 sm:grid-cols-2;
   }
 
   .segmented-control button {
-    @apply rounded-sm bg-transparent text-foreground hover:bg-accent;
+    @apply min-h-10 rounded-sm bg-transparent text-foreground shadow-none hover:bg-card;
   }
 
   .segmented-control button.active {
-    @apply bg-primary text-primary-foreground;
+    @apply bg-card text-foreground shadow-xs;
   }
 
   .auth-mode-control {
@@ -841,7 +956,7 @@
   }
 
   .filter-grid-desktop {
-    @apply grid gap-3 md:grid-cols-[repeat(4,minmax(0,1fr))_auto];
+    @apply grid min-w-0 gap-3 md:grid-cols-[repeat(4,minmax(0,1fr))_auto];
   }
 
   .collection-toolbar {
@@ -873,7 +988,7 @@
   }
 
   .daily-receivables-grid button {
-    @apply grid min-h-[94px] content-between gap-1 rounded-md border border-border bg-background p-3 text-left text-foreground hover:bg-accent;
+    @apply grid min-h-[94px] content-between gap-1 rounded-md border border-border bg-background p-3 text-left text-foreground shadow-none hover:bg-accent;
   }
 
   .daily-receivables-grid button.active {
@@ -889,6 +1004,253 @@
     @apply text-base font-black;
   }
 
+  .billing-title-row {
+    @apply rounded-lg border border-border bg-card p-4 shadow-sm sm:p-5;
+    background: linear-gradient(135deg, var(--surface) 0%, var(--card) 64%, var(--dashboard-blue-soft) 100%);
+  }
+
+  .billing-eyebrow {
+    @apply mb-2 inline-flex rounded-md border border-border bg-background px-2.5 py-1 text-xs font-black uppercase text-muted-foreground;
+  }
+
+  .billing-summary-grid {
+    @apply grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-6;
+  }
+
+  .billing-metric {
+    @apply min-h-[86px] gap-1.5 p-3 sm:min-h-[118px] sm:gap-2 sm:p-4;
+  }
+
+  .billing-metric strong {
+    @apply text-lg sm:text-2xl;
+  }
+
+  .billing-metric span {
+    @apply text-xs leading-4 sm:text-sm;
+  }
+
+  .billing-metric-danger {
+    border-color: color-mix(in oklch, var(--dashboard-red) 18%, var(--border));
+  }
+
+  .billing-metric-warning {
+    border-color: color-mix(in oklch, var(--dashboard-amber) 22%, var(--border));
+  }
+
+  .billing-toolbar {
+    @apply grid gap-3 p-3 sm:gap-4 sm:p-5;
+  }
+
+  .billing-period-control {
+    @apply grid-cols-3 sm:grid-cols-3 xl:grid-cols-6;
+  }
+
+  .billing-period-control button {
+    @apply px-2 text-xs sm:text-sm;
+  }
+
+  .billing-quick-filters {
+    @apply flex gap-2 overflow-x-auto pb-1;
+    scrollbar-width: none;
+  }
+
+  .billing-quick-filters button {
+    @apply min-h-9 shrink-0 rounded-md border border-border bg-background px-3 text-xs font-extrabold text-muted-foreground shadow-none hover:bg-accent hover:text-accent-foreground;
+  }
+
+  .billing-quick-filters button.active {
+    @apply border-primary/20 bg-primary/10 text-primary;
+  }
+
+  .billing-filter-grid {
+    @apply md:grid-cols-3 xl:grid-cols-6;
+  }
+
+  .billing-search-input {
+    @apply w-full;
+  }
+
+  .billing-advanced-filters {
+    @apply rounded-md border border-border bg-background;
+  }
+
+  .billing-advanced-filters summary {
+    @apply flex min-h-10 cursor-pointer items-center px-3 text-sm font-extrabold text-foreground;
+  }
+
+  .billing-advanced-filters .billing-filter-grid {
+    @apply border-t border-border p-3;
+  }
+
+  .billing-section-heading {
+    @apply mb-4 flex flex-wrap items-end justify-between gap-3;
+  }
+
+  .billing-section-heading h2 {
+    @apply m-0;
+  }
+
+  .billing-section-heading p {
+    @apply mt-1 text-sm text-muted-foreground;
+  }
+
+  .billing-table {
+    min-width: 1560px;
+  }
+
+  .billing-table-panel {
+    @apply hidden lg:block;
+  }
+
+  .billing-table th,
+  .billing-table td {
+    @apply px-2.5;
+  }
+
+  .billing-status-badge {
+    @apply inline-flex min-h-7 items-center rounded-md border px-2.5 py-1 text-xs font-black;
+    white-space: nowrap;
+  }
+
+  .billing-status-open {
+    border-color: color-mix(in oklch, var(--dashboard-blue) 22%, transparent);
+    background: var(--dashboard-blue-soft);
+    color: var(--dashboard-blue);
+  }
+
+  .billing-status-today {
+    border-color: color-mix(in oklch, var(--dashboard-amber) 24%, transparent);
+    background: var(--dashboard-amber-soft);
+    color: color-mix(in oklch, var(--dashboard-amber) 78%, black);
+  }
+
+  .billing-status-paid {
+    @apply border-primary/20 bg-primary/10 text-primary;
+  }
+
+  .billing-status-partial {
+    border-color: color-mix(in oklch, var(--dashboard-violet) 22%, transparent);
+    background: var(--dashboard-violet-soft);
+    color: var(--dashboard-violet);
+  }
+
+  .billing-status-overdue {
+    border-color: color-mix(in oklch, var(--dashboard-red) 22%, transparent);
+    background: var(--dashboard-red-soft);
+    color: var(--dashboard-red);
+  }
+
+  .billing-status-sent {
+    border-color: color-mix(in oklch, var(--dashboard-rose) 22%, transparent);
+    background: var(--dashboard-rose-soft);
+    color: var(--dashboard-rose);
+  }
+
+  .billing-status-negotiated {
+    border-color: color-mix(in oklch, var(--secondary) 24%, transparent);
+    background: color-mix(in oklch, var(--secondary) 9%, white);
+    color: var(--secondary);
+  }
+
+  .billing-status-cancelled {
+    @apply border-border bg-muted text-muted-foreground;
+  }
+
+  .billing-mobile-list {
+    @apply lg:hidden;
+  }
+
+  .billing-mobile-list.mobile-card-list.always-grid {
+    @apply lg:hidden;
+  }
+
+  .billing-mobile-list .mobile-data-card {
+    @apply gap-3 p-4;
+  }
+
+  .billing-card-heading {
+    @apply flex flex-wrap items-start justify-between gap-2;
+  }
+
+  .billing-card-heading > div {
+    @apply grid min-w-0 gap-1;
+  }
+
+  .billing-card-heading strong {
+    @apply text-base leading-tight;
+  }
+
+  .billing-card-heading small {
+    @apply text-xs leading-5;
+  }
+
+  .billing-card-main {
+    @apply grid gap-1 rounded-md border border-border bg-background p-3;
+  }
+
+  .billing-card-main strong {
+    @apply text-2xl font-black leading-tight text-foreground;
+  }
+
+  .billing-card-main span {
+    @apply text-xs font-bold text-muted-foreground;
+  }
+
+  .billing-card-meta {
+    @apply flex flex-wrap gap-1.5;
+  }
+
+  .billing-card-meta span {
+    @apply rounded-md bg-muted px-2 py-1 text-xs font-bold text-muted-foreground;
+  }
+
+  .billing-actions {
+    @apply grid min-w-0 gap-2;
+  }
+
+  .billing-primary-actions {
+    @apply grid grid-cols-3 gap-2;
+  }
+
+  .billing-primary-actions .secondary-button {
+    @apply min-h-10 px-2 text-xs;
+  }
+
+  .billing-more-actions {
+    @apply rounded-md border border-border bg-background;
+  }
+
+  .billing-more-actions summary {
+    @apply flex min-h-9 cursor-pointer items-center px-3 text-xs font-extrabold text-muted-foreground;
+  }
+
+  .billing-more-actions div {
+    @apply grid gap-2 border-t border-border p-2 sm:grid-cols-2;
+  }
+
+  .billing-actions .secondary-button,
+  .billing-actions .destructive-button,
+  .billing-actions .button-link {
+    @apply min-h-9 px-2.5 text-xs;
+  }
+
+  .billing-history-list {
+    @apply grid gap-3;
+  }
+
+  .billing-history-list article {
+    @apply grid gap-1 rounded-md border border-border bg-background p-3;
+  }
+
+  .billing-history-list strong {
+    @apply text-sm font-extrabold text-foreground;
+  }
+
+  .billing-history-list span,
+  .billing-history-list small {
+    @apply text-sm text-muted-foreground;
+  }
+
   .mobile-card-list {
     @apply grid gap-4 lg:hidden;
   }
@@ -898,7 +1260,16 @@
   }
 
   .mobile-data-card {
-    @apply grid gap-3 rounded-lg border border-border bg-card p-5 text-card-foreground shadow-sm;
+    @apply grid min-w-0 gap-3 rounded-lg border border-border bg-card p-5 text-card-foreground shadow-sm;
+    background: linear-gradient(180deg, var(--surface) 0%, var(--card) 100%);
+  }
+
+  .mobile-data-card > *,
+  .mobile-data-card strong,
+  .mobile-data-card small,
+  .mobile-data-card span {
+    @apply min-w-0;
+    overflow-wrap: anywhere;
   }
 
   .mobile-data-card strong {
@@ -915,7 +1286,12 @@
   }
 
   .mini-totals b {
-    @apply rounded-md bg-background p-2 text-sm;
+    @apply min-w-0 rounded-md border border-border bg-background p-2 text-sm;
+    overflow-wrap: anywhere;
+  }
+
+  .team-member-card {
+    @apply overflow-hidden;
   }
 
   .detail-grid {
@@ -931,7 +1307,8 @@
   }
 
   .desktop-table-wrap {
-    @apply overflow-x-auto;
+    @apply max-w-full overflow-x-auto;
+    scrollbar-gutter: stable;
   }
 
   .mobile-card-list + .desktop-table-wrap {
@@ -939,19 +1316,65 @@
   }
 
   table {
-    @apply w-full border-collapse text-left text-sm;
+    @apply w-full border-separate border-spacing-0 text-left text-sm;
+    table-layout: auto;
   }
 
   th {
-    @apply border-b border-border px-3 py-3 text-xs font-bold uppercase text-muted-foreground;
+    @apply border-b border-border bg-muted/70 px-3 py-3 text-xs font-bold uppercase text-muted-foreground;
   }
 
   td {
-    @apply border-b border-border px-3 py-3 text-foreground;
+    @apply border-b border-border px-3 py-3 align-top text-foreground;
+    overflow-wrap: anywhere;
+  }
+
+  td small {
+    @apply mt-1 block text-xs leading-5 text-muted-foreground;
+    overflow-wrap: anywhere;
+  }
+
+  .team-members-table {
+    min-width: 1220px;
+  }
+
+  .team-members-table th,
+  .team-members-table td {
+    white-space: normal;
+  }
+
+  .team-members-table th:last-child,
+  .team-members-table td:last-child {
+    min-width: 340px;
+  }
+
+  .team-members-table td:nth-child(2),
+  .team-members-table td:nth-child(8) {
+    white-space: nowrap;
+  }
+
+  .team-members-table td:first-child {
+    min-width: 250px;
+    max-width: 320px;
+  }
+
+  .team-members-table td:first-child small {
+    max-width: 260px;
+  }
+
+  tbody tr {
+    @apply transition;
+  }
+
+  tbody tr:hover td {
+    background: color-mix(in oklch, var(--accent) 42%, transparent);
   }
 
   .skeleton-card {
     @apply min-h-32 animate-pulse rounded-lg border border-border bg-muted;
+    background: linear-gradient(90deg, var(--muted) 0%, var(--surface-strong) 50%, var(--muted) 100%);
+    background-size: 220% 100%;
+    animation: skeleton-shimmer 1.35s ease-in-out infinite;
   }
 
   .mobile-filter-panel {
@@ -967,15 +1390,15 @@
   }
 
   .mobile-bottom-nav {
-    @apply fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-border bg-card/95 px-2 py-2 shadow-lg backdrop-blur lg:hidden;
+    @apply fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-border bg-card/95 px-2 py-2 shadow-lg backdrop-blur-xl lg:hidden;
   }
 
   .mobile-nav-item {
-    @apply grid min-h-[58px] place-items-center gap-1 rounded-md px-1 text-center text-[0.68rem] font-bold text-muted-foreground;
+    @apply grid min-h-[58px] place-items-center gap-1 rounded-md px-1 text-center text-[0.68rem] font-bold text-muted-foreground transition;
   }
 
   .mobile-nav-item.active {
-    @apply bg-primary text-primary-foreground;
+    @apply bg-secondary text-secondary-foreground shadow-sm;
   }
 
   .drawer-layer {
@@ -983,11 +1406,12 @@
   }
 
   .drawer-backdrop {
-    @apply absolute inset-0 h-auto min-h-0 w-full rounded-none bg-foreground/35 p-0;
+    @apply absolute inset-0 h-auto min-h-0 w-full rounded-none bg-foreground/35 p-0 shadow-none;
   }
 
   .drawer-panel {
     @apply absolute inset-y-0 left-0 grid w-[min(88vw,340px)] grid-rows-[auto_1fr] border-r border-sidebar-border bg-sidebar p-4 text-sidebar-foreground shadow-2xl;
+    animation: drawer-in var(--transition-normal);
   }
 
   .drawer-header {
@@ -1007,19 +1431,20 @@
   }
 
   .dashboard-premium {
-    @apply grid gap-5 rounded-xl;
+    @apply grid gap-6 rounded-xl;
   }
 
   .dashboard-header {
-    @apply flex flex-col gap-4 border-b border-border pb-5 sm:flex-row sm:items-end sm:justify-between;
+    @apply flex flex-col gap-4 rounded-lg border border-border bg-card p-5 shadow-sm sm:flex-row sm:items-end sm:justify-between;
+    background: linear-gradient(135deg, var(--surface) 0%, var(--card) 72%, var(--accent) 100%);
   }
 
   .dashboard-header h1 {
-    @apply mt-1 text-3xl font-black text-foreground;
+    @apply mt-1 text-3xl font-black leading-tight text-foreground;
   }
 
   .dashboard-header p {
-    @apply mt-2 text-sm text-muted-foreground;
+    @apply mt-2 text-sm leading-6 text-muted-foreground;
   }
 
   .dashboard-eyebrow {
@@ -1031,7 +1456,7 @@
   }
 
   .dashboard-date-control {
-    @apply flex min-h-11 items-center gap-2 rounded-lg border border-border bg-card px-3 text-muted-foreground shadow-xs;
+    @apply flex min-h-11 items-center gap-2 rounded-md border border-border bg-card px-3 text-muted-foreground shadow-xs;
   }
 
   .dashboard-date-control input {
@@ -1043,11 +1468,12 @@
   }
 
   .dashboard-new-button {
-    @apply inline-flex min-h-11 items-center gap-2 rounded-lg bg-secondary px-4 text-sm font-extrabold text-secondary-foreground shadow-sm transition hover:opacity-90;
+    @apply inline-flex min-h-11 items-center gap-2 rounded-md bg-secondary px-4 text-sm font-extrabold text-secondary-foreground shadow-sm transition hover:opacity-90;
   }
 
   .new-action-menu {
     @apply absolute right-0 top-[calc(100%+8px)] z-20 grid min-w-[210px] gap-1 rounded-lg border border-border bg-card p-2 shadow-xl;
+    animation: panel-in var(--transition-normal);
   }
 
   .new-action-menu a {
@@ -1059,19 +1485,25 @@
   }
 
   .dashboard-kpi-grid {
-    @apply grid gap-3 sm:grid-cols-2 xl:grid-cols-[1.35fr_repeat(4,minmax(0,1fr))];
+    @apply grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-[1.35fr_repeat(4,minmax(0,1fr))];
   }
 
   .dashboard-operational-grid {
-    @apply grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6;
+    @apply grid min-w-0 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6;
   }
 
   .dashboard-operational-card {
-    @apply flex min-h-[82px] items-center gap-3 rounded-lg border border-border bg-card p-3 shadow-xs;
+    @apply flex min-h-[82px] min-w-0 items-center gap-3 rounded-lg border border-border bg-card p-3 shadow-xs transition;
+    background: linear-gradient(180deg, var(--surface) 0%, var(--card) 100%);
   }
 
   .dashboard-card-link {
     @apply no-underline transition-transform hover:-translate-y-0.5;
+  }
+
+  .dashboard-card-link:hover .dashboard-operational-card {
+    @apply border-ring;
+    box-shadow: 0 14px 32px hsl(220 35% 18% / 0.07);
   }
 
   .dashboard-operational-card > svg {
@@ -1094,12 +1526,14 @@
   .dashboard-primary-kpi,
   .dashboard-kpi-card,
   .dashboard-panel {
-    @apply rounded-lg border border-border bg-card text-card-foreground shadow-sm;
+    @apply rounded-lg border border-border bg-card text-card-foreground shadow-sm transition;
   }
 
   .dashboard-primary-kpi {
     @apply grid min-h-[166px] content-between gap-2 bg-secondary p-5 text-secondary-foreground shadow-md sm:col-span-2 xl:col-span-1;
     border-color: color-mix(in oklch, var(--secondary) 84%, white);
+    background:
+      linear-gradient(145deg, color-mix(in oklch, var(--secondary) 94%, black) 0%, var(--secondary) 100%);
   }
 
   .dashboard-primary-kpi > span,
@@ -1114,6 +1548,11 @@
   .dashboard-kpi-card {
     @apply grid min-h-[146px] content-between gap-2 p-4;
     border-top-width: 3px;
+  }
+
+  .dashboard-kpi-card:hover,
+  .dashboard-panel:hover {
+    box-shadow: 0 16px 38px hsl(220 35% 18% / 0.065);
   }
 
   .dashboard-kpi-card > span {
@@ -1147,13 +1586,13 @@
   }
 
   .dashboard-kpi-received {
-    background: var(--dashboard-green-soft);
-    border-top-color: var(--dashboard-green);
+    background: var(--dashboard-rose-soft);
+    border-top-color: var(--dashboard-rose);
   }
 
   .dashboard-kpi-received .dashboard-kpi-icon {
-    background: color-mix(in oklch, var(--dashboard-green) 16%, transparent);
-    color: var(--dashboard-green);
+    background: color-mix(in oklch, var(--dashboard-rose) 16%, transparent);
+    color: var(--dashboard-rose);
   }
 
   .dashboard-kpi-profit {
@@ -1207,6 +1646,7 @@
 
   .dashboard-panel {
     @apply min-w-0 p-4 sm:p-5;
+    background: linear-gradient(180deg, var(--surface) 0%, var(--card) 100%);
   }
 
   .dashboard-chart-card {
@@ -1222,7 +1662,7 @@
   }
 
   .dashboard-panel-header h2 {
-    @apply mt-1 text-base font-extrabold text-foreground;
+    @apply mt-1 text-base font-black leading-tight text-foreground;
   }
 
   .dashboard-panel-header a {
@@ -1234,7 +1674,7 @@
   }
 
   .dashboard-chart-filters button {
-    @apply min-h-8 rounded-sm bg-transparent px-2.5 py-1 text-xs font-extrabold text-muted-foreground hover:bg-card;
+    @apply min-h-8 rounded-sm bg-transparent px-2.5 py-1 text-xs font-extrabold text-muted-foreground shadow-none hover:bg-card;
   }
 
   .dashboard-chart-filters button.active {
@@ -1320,8 +1760,8 @@
   }
 
   .collection-paid {
-    background: var(--dashboard-green-soft);
-    color: var(--dashboard-green);
+    background: var(--dashboard-rose-soft);
+    color: var(--dashboard-rose);
   }
 
   .collections-grid strong {
@@ -1338,7 +1778,7 @@
 
   .dashboard-alert-row,
   .risk-client-row {
-    @apply grid min-h-[58px] grid-cols-[auto_1fr_auto] items-center gap-3 rounded-md bg-background p-3;
+    @apply grid min-h-[58px] grid-cols-[auto_1fr_auto] items-center gap-3 rounded-md border border-border bg-background p-3;
   }
 
   .dashboard-alert-row {
@@ -1388,7 +1828,7 @@
   }
 
   .soft-badge {
-    @apply inline-flex rounded-md bg-muted px-2 py-1 text-xs font-bold text-muted-foreground;
+    @apply inline-flex rounded-md border border-border bg-muted px-2 py-1 text-xs font-bold text-muted-foreground;
   }
 
   .badge-paid,
@@ -1401,8 +1841,226 @@
     @apply bg-destructive/10 text-destructive;
   }
 
+  .status-badge {
+    @apply inline-flex min-h-7 items-center rounded-md border px-2.5 py-1 text-xs font-extrabold;
+    white-space: nowrap;
+  }
+
+  .status-badge-positive {
+    @apply border-primary/15 bg-primary/10 text-primary;
+  }
+
+  .status-badge-warning {
+    border-color: color-mix(in oklch, var(--dashboard-amber) 22%, transparent);
+    background: var(--dashboard-amber-soft);
+    color: color-mix(in oklch, var(--dashboard-amber) 78%, black);
+  }
+
+  .status-badge-danger {
+    @apply border-destructive/20 bg-destructive/10 text-destructive;
+  }
+
+  .status-badge-neutral {
+    @apply border-border bg-muted text-muted-foreground;
+  }
+
+  .file-picker {
+    @apply flex min-h-[74px] min-w-0 cursor-pointer items-center gap-3 rounded-md border border-dashed border-input bg-background p-3 text-left transition hover:border-ring hover:bg-accent/45;
+  }
+
+  .file-picker input {
+    @apply sr-only;
+  }
+
+  .file-picker-icon {
+    @apply grid size-11 shrink-0 place-items-center rounded-md bg-accent text-accent-foreground;
+  }
+
+  .file-picker-copy {
+    @apply grid min-w-0 gap-1;
+  }
+
+  .file-picker-copy strong {
+    @apply text-sm font-extrabold text-foreground;
+  }
+
+  .file-picker-copy small {
+    @apply text-xs leading-5 text-muted-foreground;
+  }
+
+  .option-card-group {
+    @apply grid gap-2.5;
+  }
+
+  .option-card-group > span {
+    @apply text-xs font-bold text-muted-foreground;
+  }
+
+  .option-card-grid {
+    @apply grid min-w-0 gap-2 sm:grid-cols-4 lg:grid-cols-7;
+  }
+
+  .option-card-grid.compact {
+    @apply sm:grid-cols-3 lg:grid-cols-3;
+  }
+
+  .option-card {
+    @apply flex min-h-11 cursor-pointer items-center gap-2 rounded-md border border-input bg-background px-3 text-sm font-extrabold text-foreground transition hover:border-ring hover:bg-accent/50;
+  }
+
+  .option-card input {
+    @apply min-h-0 w-4 shrink-0;
+    accent-color: var(--primary);
+  }
+
+  .value-summary-grid {
+    @apply grid min-w-0 gap-3 sm:grid-cols-3;
+  }
+
+  .value-summary-card {
+    @apply grid min-h-[92px] content-between gap-3 rounded-md border border-border bg-background p-4;
+  }
+
+  .value-summary-card span,
+  .readonly-field span {
+    @apply text-xs font-bold text-muted-foreground;
+  }
+
+  .value-summary-card strong,
+  .readonly-field strong {
+    @apply text-xl font-black text-foreground;
+    font-family: var(--font-sans);
+    font-feature-settings: "tnum";
+    font-variant-numeric: tabular-nums;
+  }
+
+  .value-summary-warning {
+    border-color: color-mix(in oklch, var(--dashboard-amber) 22%, transparent);
+    background: var(--dashboard-amber-soft);
+  }
+
+  .value-summary-strong {
+    @apply border-primary/20 bg-primary/10;
+  }
+
+  .readonly-field {
+    @apply grid min-h-[74px] content-center gap-1 rounded-md border border-border bg-muted/55 px-3;
+  }
+
+  .modal-layer {
+    @apply fixed inset-0 z-[60] grid place-items-center p-4;
+  }
+
+  .modal-backdrop {
+    @apply absolute inset-0 min-h-0 rounded-none border-0 bg-foreground/35 p-0 shadow-none;
+  }
+
+  .modal-backdrop:hover {
+    filter: none;
+    transform: none;
+  }
+
+  .modal-panel {
+    @apply relative z-[61] grid max-h-[calc(100vh-32px)] w-full max-w-[620px] gap-4 overflow-auto rounded-lg border border-border bg-card p-5 text-card-foreground shadow-xl;
+    animation: panel-in var(--transition-normal);
+  }
+
+  .modal-header {
+    @apply flex items-start justify-between gap-4 border-b border-border pb-4;
+  }
+
+  .modal-header h2 {
+    @apply m-0 text-xl font-black text-foreground;
+  }
+
+  .modal-header p {
+    @apply mt-1 text-sm text-muted-foreground;
+  }
+
+  .modal-form {
+    @apply gap-4;
+  }
+
+  .confirm-panel {
+    @apply max-w-[460px] gap-4;
+  }
+
+  .confirm-dialog {
+    @apply grid grid-cols-[auto_1fr] gap-3 rounded-md border p-4;
+  }
+
+  .confirm-dialog p {
+    @apply m-0 text-sm leading-6 text-foreground;
+  }
+
+  .confirm-dialog-icon {
+    @apply grid size-10 place-items-center rounded-md;
+  }
+
+  .confirm-dialog-danger {
+    @apply border-destructive/20 bg-destructive/10;
+  }
+
+  .confirm-dialog-danger .confirm-dialog-icon {
+    @apply bg-destructive/15 text-destructive;
+  }
+
+  .confirm-dialog-warning {
+    border-color: color-mix(in oklch, var(--dashboard-amber) 25%, transparent);
+    background: var(--dashboard-amber-soft);
+  }
+
+  .confirm-dialog-warning .confirm-dialog-icon {
+    color: color-mix(in oklch, var(--dashboard-amber) 78%, black);
+    background: color-mix(in oklch, var(--dashboard-amber-soft) 45%, white);
+  }
+
+  .confirm-actions {
+    @apply justify-end;
+  }
+
+  .form-subsection {
+    @apply mt-1 flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1 border-t border-border pt-4;
+  }
+
+  .form-subsection:first-child {
+    @apply mt-0 border-t-0 pt-0;
+  }
+
+  .form-subsection strong {
+    @apply text-sm font-black text-foreground;
+  }
+
+  .form-subsection span {
+    @apply text-xs text-muted-foreground;
+  }
+
+  .sale-client-fields .full-span {
+    @apply lg:col-span-3;
+  }
+
+  .sale-loan-fields .full-span {
+    @apply md:col-span-3 xl:col-span-2;
+  }
+
+  .mono-cell {
+    @apply font-mono text-xs text-muted-foreground;
+  }
+
+  .audit-json-details {
+    @apply max-w-[260px] rounded-md border border-border bg-background px-2.5 py-2 text-xs;
+  }
+
+  .audit-json-details summary {
+    @apply cursor-pointer font-bold text-muted-foreground;
+  }
+
+  .audit-json-details pre {
+    @apply mt-2 max-h-44 overflow-auto whitespace-pre-wrap rounded-sm bg-muted p-2 text-[0.7rem] leading-5 text-foreground;
+  }
+
   .dashboard-empty {
-    @apply grid min-h-[112px] place-content-center gap-1 rounded-md bg-background p-4 text-center;
+    @apply grid min-h-[112px] place-content-center gap-1 rounded-md border border-dashed border-border bg-background p-4 text-center;
   }
 
   .dashboard-empty strong {
@@ -1481,6 +2139,14 @@
     @apply p-4;
   }
 
+  .form-grid,
+  .filter-grid-desktop,
+  .sale-client-fields,
+  .sale-loan-fields,
+  .compact-client-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .metric-card {
     @apply min-h-[108px] gap-2 p-4;
   }
@@ -1524,6 +2190,51 @@
 
   .mobile-nav-item {
     @apply min-h-[54px] text-[0.62rem];
+  }
+}
+
+@keyframes panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes drawer-in {
+  from {
+    opacity: 0;
+    transform: translateX(-12px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes skeleton-shimmer {
+  0% {
+    background-position: 120% 0;
+  }
+
+  100% {
+    background-position: -120% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 1ms !important;
   }
 }
 

@@ -33,7 +33,7 @@ Deno.serve(async (request) => {
       email,
       password,
       email_confirm: true,
-      user_metadata: { full_name: fullName },
+      user_metadata: { full_name: fullName, name: fullName },
     })
     if (error) throw error
     createdUserId = data.user.id

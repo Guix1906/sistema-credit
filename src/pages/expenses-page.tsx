@@ -1,12 +1,14 @@
 import { Archive, Pencil } from 'lucide-react'
-import { FormEvent, useState } from 'react'
+import { FormEvent, useCallback, useState } from 'react'
 
-import { useAuth } from '../contexts/auth-context'
+import { ConfirmDialog } from '../components/confirm-dialog'
+import { useAuth } from '../hooks/use-auth'
 import { useAsyncData } from '../hooks/use-async-data'
 import { localIsoDate } from '../lib/dates'
 import { formatCurrency, formatDate, nullableText, toNumber } from '../lib/formatters'
 import { supabase } from '../lib/supabase'
 import { listCashboxes, listRoutes } from '../services/finance-service'
+import { getAppSettings } from '../services/settings-service'
 import { uploadReceipt } from '../services/storage-service'
 
 type ExpenseRecord = {
@@ -22,11 +24,23 @@ type ExpenseRecord = {
   status: 'active' | 'archived'
 }
 
+const fallbackPaymentMethods = ['cash', 'pix', 'bank_transfer', 'other']
+const paymentMethodLabels: Record<string, string> = {
+  cash: 'Dinheiro',
+  pix: 'Pix',
+  bank_transfer: 'Transferencia',
+  debit_card: 'Cartao de debito',
+  credit_card: 'Cartao de credito',
+  other: 'Outra',
+}
+
 export function ExpensesPage() {
   const { profile } = useAuth()
   const routes = useAsyncData(listRoutes, [])
   const cashboxes = useAsyncData(listCashboxes, [])
   const expenses = useAsyncData(listExpenses, [])
+  const appSettingsLoader = useCallback(() => profile ? getAppSettings(profile.id) : Promise.resolve(null), [profile?.id])
+  const appSettings = useAsyncData(appSettingsLoader, null)
   const [editing, setEditing] = useState<ExpenseRecord | null>(null)
   const [message, setMessage] = useState('')
   const [term, setTerm] = useState('')
@@ -34,6 +48,8 @@ export function ExpensesPage() {
   const [status, setStatus] = useState('active')
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
+  const [expenseToArchive, setExpenseToArchive] = useState<ExpenseRecord | null>(null)
+  const [archivingId, setArchivingId] = useState<string | null>(null)
   const visibleExpenses = expenses.data.filter((expense) => {
     const safeTerm = term.trim().toLowerCase()
     return (!safeTerm || [expense.category, expense.description, expense.notes].some((value) => value?.toLowerCase().includes(safeTerm)))
@@ -43,6 +59,10 @@ export function ExpensesPage() {
       && (!endDate || expense.expense_date <= endDate)
   })
   const total = visibleExpenses.reduce((sum, expense) => sum + expense.amount, 0)
+  const paymentMethods = appSettings.data?.payment_methods?.length ? appSettings.data.payment_methods : fallbackPaymentMethods
+  const formPaymentMethods = editing?.payment_method && !paymentMethods.includes(editing.payment_method)
+    ? [editing.payment_method, ...paymentMethods]
+    : paymentMethods
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -90,13 +110,19 @@ export function ExpensesPage() {
     }
   }
 
-  async function archiveExpense(expense: ExpenseRecord) {
-    if (!window.confirm(`Arquivar o gasto "${expense.category}" e estornar o caixa vinculado?`)) return
-    const { error } = await supabase.rpc('archive_expense', { p_expense_id: expense.id })
-    if (error) setMessage(error.message)
-    else {
-      setMessage('Gasto arquivado. O caixa vinculado foi estornado.')
-      await Promise.all([expenses.reload(), cashboxes.reload()])
+  async function archiveExpense() {
+    if (!expenseToArchive) return
+    setArchivingId(expenseToArchive.id)
+    try {
+      const { error } = await supabase.rpc('archive_expense', { p_expense_id: expenseToArchive.id })
+      if (error) setMessage(error.message)
+      else {
+        setMessage('Gasto arquivado. O caixa vinculado foi estornado.')
+        setExpenseToArchive(null)
+        await Promise.all([expenses.reload(), cashboxes.reload()])
+      }
+    } finally {
+      setArchivingId(null)
     }
   }
 
@@ -109,7 +135,7 @@ export function ExpensesPage() {
         <label>Valor<input disabled={Boolean(editing)} name="amount" required type="number" step="0.01" defaultValue={editing?.amount ?? ''} /></label>
         <label>Rota<select name="routeId" defaultValue={editing?.route_id ?? ''}><option value="">Sem rota</option>{routes.data.map((route) => <option key={route.id} value={route.id}>{route.name}</option>)}</select></label>
         <label>Caixa<select disabled={Boolean(editing)} name="cashboxId" defaultValue={editing?.cashbox_id ?? ''}><option value="">Sem caixa</option>{cashboxes.data.map((cashbox) => <option key={cashbox.id} value={cashbox.id}>{cashbox.name}</option>)}</select></label>
-        <label>Forma<select name="paymentMethod" defaultValue={editing?.payment_method ?? 'cash'}><option value="cash">Dinheiro</option><option value="pix">Pix</option><option value="bank_transfer">Transferencia</option><option value="other">Outra</option></select></label>
+        <label>Forma<select name="paymentMethod" defaultValue={editing?.payment_method ?? formPaymentMethods[0] ?? 'cash'}>{formPaymentMethods.map((method) => <option key={method} value={method}>{paymentMethodLabels[method] ?? method}</option>)}</select></label>
         {!editing ? <label>Comprovante<input name="receipt" type="file" /></label> : null}
         <label className="full-span">Descricao<textarea name="description" defaultValue={editing?.description ?? ''} /></label>
         <label className="full-span">Observacoes<textarea name="notes" defaultValue={editing?.notes ?? ''} /></label>
@@ -124,8 +150,18 @@ export function ExpensesPage() {
         <label>Ate<input onChange={(event) => setEndDate(event.target.value)} type="date" value={endDate} /></label>
       </section>
       <div className="summary-grid"><article className="metric-card"><span>Total filtrado</span><strong>{formatCurrency(total)}</strong></article><article className="metric-card"><span>Registros</span><strong>{visibleExpenses.length}</strong></article></div>
-      <div className="mobile-card-list">{visibleExpenses.map((expense) => <article className="mobile-data-card" key={expense.id}><strong>{expense.category}</strong><span>{formatCurrency(expense.amount)} - {formatDate(expense.expense_date)}</span><small>{expense.description ?? 'Sem descricao'} - {expense.status === 'active' ? 'Ativo' : 'Arquivado'}</small>{expense.status === 'active' ? <div className="button-row"><button className="secondary-button" onClick={() => setEditing(expense)} type="button"><Pencil size={16} />Editar</button><button className="destructive-button" onClick={() => archiveExpense(expense)} type="button"><Archive size={16} />Arquivar</button></div> : null}</article>)}</div>
-      <section className="content-panel desktop-table-wrap"><table><thead><tr><th>Data</th><th>Categoria</th><th>Valor</th><th>Descricao</th><th>Status</th><th>Acoes</th></tr></thead><tbody>{visibleExpenses.map((expense) => <tr key={expense.id}><td>{formatDate(expense.expense_date)}</td><td>{expense.category}</td><td>{formatCurrency(expense.amount)}</td><td>{expense.description ?? '-'}</td><td>{expense.status === 'active' ? 'Ativo' : 'Arquivado'}</td><td>{expense.status === 'active' ? <div className="button-row compact-actions"><button className="secondary-button" onClick={() => setEditing(expense)} type="button"><Pencil size={15} />Editar</button><button className="destructive-button" onClick={() => archiveExpense(expense)} type="button"><Archive size={15} />Arquivar</button></div> : '-'}</td></tr>)}</tbody></table></section>
+      <div className="mobile-card-list">{visibleExpenses.map((expense) => <article className="mobile-data-card" key={expense.id}><strong>{expense.category}</strong><span>{formatCurrency(expense.amount)} - {formatDate(expense.expense_date)}</span><small>{expense.description ?? 'Sem descricao'} - {expense.status === 'active' ? 'Ativo' : 'Arquivado'}</small>{expense.status === 'active' ? <div className="button-row"><button className="secondary-button" onClick={() => setEditing(expense)} type="button"><Pencil size={16} />Editar</button><button className="destructive-button" onClick={() => setExpenseToArchive(expense)} type="button"><Archive size={16} />Arquivar</button></div> : null}</article>)}</div>
+      <section className="content-panel desktop-table-wrap"><table><thead><tr><th>Data</th><th>Categoria</th><th>Valor</th><th>Descricao</th><th>Status</th><th>Acoes</th></tr></thead><tbody>{visibleExpenses.map((expense) => <tr key={expense.id}><td>{formatDate(expense.expense_date)}</td><td>{expense.category}</td><td>{formatCurrency(expense.amount)}</td><td>{expense.description ?? '-'}</td><td>{expense.status === 'active' ? 'Ativo' : 'Arquivado'}</td><td>{expense.status === 'active' ? <div className="button-row compact-actions"><button className="secondary-button" onClick={() => setEditing(expense)} type="button"><Pencil size={15} />Editar</button><button className="destructive-button" onClick={() => setExpenseToArchive(expense)} type="button"><Archive size={15} />Arquivar</button></div> : '-'}</td></tr>)}</tbody></table></section>
+      <ConfirmDialog
+        open={Boolean(expenseToArchive)}
+        title="Confirmar arquivamento"
+        description={`Arquivar o gasto "${expenseToArchive?.category ?? ''}" e estornar o caixa vinculado?`}
+        confirmLabel="Arquivar gasto"
+        loading={archivingId === expenseToArchive?.id}
+        tone="warning"
+        onClose={() => setExpenseToArchive(null)}
+        onConfirm={archiveExpense}
+      />
     </section>
   )
 }

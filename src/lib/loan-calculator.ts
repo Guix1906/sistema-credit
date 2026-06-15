@@ -40,7 +40,7 @@ export function calculateLoan(input: LoanCalculationInput): LoanCalculationResul
   }
 
   if (interestRatePercent < 0) {
-    throw new Error('A taxa de juros não pode ser negativa.')
+    throw new Error('A taxa nao pode ser negativa.')
   }
 
   const dueDays = getInstallmentDueDays(input.termDays, input.paymentFrequency)

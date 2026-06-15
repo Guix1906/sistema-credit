@@ -5,6 +5,10 @@ import { supabase } from '../lib/supabase'
 import type { Profile } from '../types/auth'
 import type { CashboxRecord, ClientRecord, InstallmentRecord, LoanRecord, RouteRecord, SaleFormInput, SelectOptionRecord } from '../types/finance'
 
+const activeCollectorRoles = ['admin', 'gerente', 'manager', 'afiliado', 'cobrador', 'collector']
+const registeredAffiliateRoles = ['admin', 'gerente', 'manager', 'afiliado', 'cobrador', 'collector']
+const profileOptionColumns = 'id, full_name, email, role, phone, cpf, route_id, commission_rate, permissions, is_active, created_at, updated_at'
+
 export type DashboardMetrics = {
   totalInvested: number
   totalReceivable: number
@@ -37,6 +41,21 @@ export type WalletRow = {
   client: ClientRecord | null
   paidInstallments: number
   pendingInstallments: number
+}
+
+export type WalletFilterOptions = {
+  routes: RouteRecord[]
+  collectors: Profile[]
+  clients: Array<Pick<ClientRecord, 'id' | 'name' | 'document_number' | 'phone'>>
+  statuses: LoanRecord['status'][]
+}
+
+export type WalletMetrics = {
+  total: number
+  open: number
+  paid: number
+  overdue: number
+  clients: number
 }
 
 export type LoanSettingsRecord = {
@@ -81,34 +100,169 @@ export type RecentPaymentRecord = {
   installment?: InstallmentRecord | null
 }
 
-export async function getSelectOptions(): Promise<SelectOptionRecord> {
-  const [routes, collectors, cashboxes] = await Promise.all([listRoutes(), listCollectors(), listCashboxes()])
-  return { routes: routes.filter((route) => route.is_active), collectors, cashboxes }
+export type BillingStatus = 'a_receber' | 'vence_hoje' | 'pago' | 'parcialmente_pago' | 'em_atraso' | 'cobranca_enviada' | 'negociado' | 'cancelado'
+export type BillingChannel = 'whatsapp' | 'call' | 'in_person' | 'other'
+export type BillingSource = 'installment' | 'receivable'
+
+export type ReceivableRecord = {
+  id: string
+  owner_id: string
+  client_id: string
+  description: string
+  amount: number
+  paid_amount: number
+  due_date: string
+  payment_method: string
+  status: BillingStatus
+  notes: string | null
+  responsible_id: string | null
+  last_billing_at: string | null
+  next_action: string | null
+  recurrence: string | null
+  paid_at: string | null
+  created_at?: string
+  updated_at?: string
 }
 
-export async function getActiveLoanSettings(_ownerId?: string): Promise<LoanSettingsRecord | null> {
+export type BillingHistoryRecord = {
+  id: string
+  owner_id: string
+  client_id: string
+  loan_id: string | null
+  installment_id: string | null
+  receivable_id: string | null
+  previous_status: BillingStatus | null
+  new_status: BillingStatus
+  note: string | null
+  responsible_id: string | null
+  channel: BillingChannel
+  created_at: string
+  responsible?: Profile | null
+}
+
+export type DailyBillingRow = {
+  id: string
+  source: BillingSource
+  sourceId: string
+  ownerId: string
+  clientId: string
+  loanId: string | null
+  installmentId: string | null
+  clientName: string
+  description: string
+  amount: number
+  paidAmount: number
+  dueDate: string
+  paymentMethod: string
+  status: BillingStatus
+  phone: string | null
+  notes: string | null
+  responsibleId: string | null
+  responsibleName: string | null
+  lastBillingAt: string | null
+  nextAction: string | null
+  recurrence: string | null
+  paidAt: string | null
+  histories: BillingHistoryRecord[]
+  manualReceivable?: ReceivableRecord
+}
+
+export type ReceivableInput = {
+  clientId: string
+  description: string
+  amount: number
+  dueDate: string
+  paymentMethod: string
+  notes?: string
+  responsibleId?: string
+  recurrence?: string
+}
+
+export async function getSelectOptions(): Promise<SelectOptionRecord> {
+  const [routes, collectors, cashboxes] = await Promise.allSettled([listRoutes(), listCollectors(), listCashboxes()])
+  if (collectors.status === 'rejected') throw collectors.reason
+
+  return {
+    routes: routes.status === 'fulfilled' ? routes.value.filter((route) => route.is_active) : [],
+    collectors: collectors.value,
+    cashboxes: cashboxes.status === 'fulfilled' ? cashboxes.value : [],
+  }
+}
+
+export async function getActiveLoanSettings(ownerId?: string): Promise<LoanSettingsRecord | null> {
+  const currentSettings = await supabase.rpc('get_current_loan_settings')
+  if (!currentSettings.error) {
+    const row = Array.isArray(currentSettings.data) ? currentSettings.data[0] : currentSettings.data
+    return (row as LoanSettingsRecord | undefined) ?? null
+  }
+
+  if (!isMissingRpc(currentSettings.error)) throw currentSettings.error
+
   let query = supabase.from('loan_settings').select('*').eq('is_active', true).order('created_at', { ascending: false }).limit(1)
+  if (ownerId) query = query.eq('owner_id', ownerId)
   const { data, error } = await query.maybeSingle()
   if (error) throw error
   return data as LoanSettingsRecord | null
 }
 
 export async function listRoutes(): Promise<RouteRecord[]> {
-  const { data, error } = await supabase.from('routes').select('id, owner_id, name, description, collector_id, collection_days, city, neighborhood, goal_amount, is_active').order('name')
+  const { data, error } = await supabase.from('routes').select('*').order('name')
   if (error) throw error
   return (data ?? []) as RouteRecord[]
 }
 
 export async function listCollectors(): Promise<Profile[]> {
-  const { data, error } = await supabase.from('profiles').select('*').in('role', ['afiliado', 'cobrador']).eq('is_active', true).order('full_name')
-  if (error) throw error
+  const { data: rpcData, error: rpcError } = await supabase.rpc('list_active_collectors')
+  if (!rpcError) return (rpcData ?? []) as Profile[]
+  if (!isMissingRpc(rpcError)) throw rpcError
+
+  const { data, error } = await supabase.from('profiles').select(profileOptionColumns).in('role', activeCollectorRoles).eq('is_active', true).order('full_name')
+  if (error) return listOwnCollectorProfile()
   return (data ?? []) as Profile[]
+}
+
+export async function listRegisteredAffiliates(): Promise<Profile[]> {
+  const { data: rpcData, error: rpcError } = await supabase.rpc('list_registered_affiliates')
+  if (!rpcError) return (rpcData ?? []) as Profile[]
+  if (!isMissingRpc(rpcError)) throw rpcError
+
+  const { data, error } = await supabase.from('profiles').select(profileOptionColumns).in('role', registeredAffiliateRoles).order('full_name')
+  if (error) return listOwnCollectorProfile({ includeAdmin: true })
+  return (data ?? []) as Profile[]
+}
+
+async function listOwnCollectorProfile(options: { includeAdmin?: boolean } = {}): Promise<Profile[]> {
+  const { data: userData, error: userError } = await supabase.auth.getUser()
+  if (userError || !userData.user) return []
+
+  const { data, error } = await supabase.from('profiles').select(profileOptionColumns).eq('id', userData.user.id).maybeSingle()
+  if (error || !data || !data.is_active) return []
+
+  const allowedRoles = options.includeAdmin ? registeredAffiliateRoles : activeCollectorRoles
+  return allowedRoles.includes(String(data.role)) ? [data as Profile] : []
 }
 
 export async function listCashboxes(): Promise<CashboxRecord[]> {
   const { data, error } = await supabase.from('cashboxes').select('id, owner_id, name, current_balance, status, kind, route_id, allow_negative').eq('status', 'open').order('name')
   if (error) throw error
   return (data ?? []) as CashboxRecord[]
+}
+
+export async function getWalletFilterOptions(): Promise<WalletFilterOptions> {
+  const [routes, collectors, clients, loans] = await Promise.all([
+    listRoutes(),
+    listRegisteredAffiliates(),
+    supabase.from('clients').select('id, name, document_number, phone').order('name').limit(1000),
+    supabase.from('loans').select('status'),
+  ])
+  if (clients.error) throw clients.error
+  if (loans.error) throw loans.error
+  return {
+    routes,
+    collectors,
+    clients: (clients.data ?? []) as WalletFilterOptions['clients'],
+    statuses: [...new Set((loans.data ?? []).map((loan) => loan.status as LoanRecord['status']))].sort(),
+  }
 }
 
 export async function searchClients(term = '', filters: { routeId?: string; collectorId?: string; activeOnly?: boolean } = {}): Promise<ClientRecord[]> {
@@ -229,6 +383,7 @@ export async function listClientsWithTotals(term = '', filters: { routeId?: stri
 }
 
 export async function createSale(profile: Profile, input: SaleFormInput): Promise<{ loanId: string; clientId: string }> {
+  validateSaleInput(input)
   const calculation = calculateLoan({
     borrowedAmount: input.loan.borrowedAmount,
     interestRatePercent: input.loan.interestRatePercent,
@@ -318,13 +473,29 @@ export async function createSale(profile: Profile, input: SaleFormInput): Promis
   return { loanId: loan.id, clientId }
 }
 
-export async function listWalletRows(filters: { status?: string; routeId?: string; collectorId?: string; term?: string; page?: number; pageSize?: number } = {}): Promise<WalletRow[]> {
+export async function listWalletRows(filters: { status?: string; routeId?: string; collectorId?: string; clientId?: string; term?: string; page?: number; pageSize?: number } = {}): Promise<WalletRow[]> {
   const page = filters.page ?? 0
   const pageSize = filters.pageSize ?? 25
+  const inheritedLinks = await resolveWalletInheritedLinks(filters)
   let query = supabase.from('loans').select('*').order('issued_at', { ascending: false }).range(page * pageSize, (page + 1) * pageSize - 1)
   if (filters.status && filters.status !== 'all') query = query.eq('status', filters.status)
-  if (filters.routeId) query = query.eq('route_id', filters.routeId)
-  if (filters.collectorId) query = query.eq('collector_id', filters.collectorId)
+  if (filters.routeId) query = inheritedLinks.routeClientIds.length
+    ? query.or(`route_id.eq.${filters.routeId},client_id.in.(${inheritedLinks.routeClientIds.join(',')})`)
+    : query.eq('route_id', filters.routeId)
+  if (filters.collectorId) query = inheritedLinks.collectorRouteIds.length || inheritedLinks.collectorClientIds.length
+    ? query.or([
+      `collector_id.eq.${filters.collectorId}`,
+      ...(inheritedLinks.collectorRouteIds.length ? [`route_id.in.(${inheritedLinks.collectorRouteIds.join(',')})`] : []),
+      ...(inheritedLinks.collectorClientIds.length ? [`client_id.in.(${inheritedLinks.collectorClientIds.join(',')})`] : []),
+    ].join(','))
+    : query.eq('collector_id', filters.collectorId)
+  if (filters.clientId) query = query.eq('client_id', filters.clientId)
+  const term = filters.term?.trim()
+  if (term) {
+    const matchingClientIds = await searchWalletClientIds(term)
+    if (!matchingClientIds.length) return []
+    query = query.in('client_id', matchingClientIds)
+  }
   const { data: loans, error } = await query
   if (error) throw error
   const loanRows = (loans ?? []) as LoanRecord[]
@@ -342,8 +513,91 @@ export async function listWalletRows(filters: { status?: string; routeId?: strin
       pendingInstallments: loanInstallments.filter((installment) => installment.status !== 'paid').length,
     }
   })
-  const term = filters.term?.trim().toLowerCase()
-  return term ? rows.filter((row) => row.client?.name.toLowerCase().includes(term)) : rows
+  return rows
+}
+
+export async function getWalletMetrics(filters: { status?: string; routeId?: string; collectorId?: string; clientId?: string; term?: string } = {}): Promise<WalletMetrics> {
+  const inheritedLinks = await resolveWalletInheritedLinks(filters)
+  let query = supabase.from('loans').select('id, client_id, total_amount')
+  if (filters.status && filters.status !== 'all') query = query.eq('status', filters.status)
+  if (filters.routeId) query = inheritedLinks.routeClientIds.length
+    ? query.or(`route_id.eq.${filters.routeId},client_id.in.(${inheritedLinks.routeClientIds.join(',')})`)
+    : query.eq('route_id', filters.routeId)
+  if (filters.collectorId) query = inheritedLinks.collectorRouteIds.length || inheritedLinks.collectorClientIds.length
+    ? query.or([
+      `collector_id.eq.${filters.collectorId}`,
+      ...(inheritedLinks.collectorRouteIds.length ? [`route_id.in.(${inheritedLinks.collectorRouteIds.join(',')})`] : []),
+      ...(inheritedLinks.collectorClientIds.length ? [`client_id.in.(${inheritedLinks.collectorClientIds.join(',')})`] : []),
+    ].join(','))
+    : query.eq('collector_id', filters.collectorId)
+  if (filters.clientId) query = query.eq('client_id', filters.clientId)
+  const term = filters.term?.trim()
+  if (term) {
+    const matchingClientIds = await searchWalletClientIds(term)
+    if (!matchingClientIds.length) return { total: 0, open: 0, paid: 0, overdue: 0, clients: 0 }
+    query = query.in('client_id', matchingClientIds)
+  }
+  const { data: loans, error } = await query
+  if (error) throw error
+  const loanRows = loans ?? []
+  if (!loanRows.length) return { total: 0, open: 0, paid: 0, overdue: 0, clients: 0 }
+  const installments = await fetchInstallmentsByLoanIds(loanRows.map((loan) => loan.id))
+  const paid = sum(installments.map((installment) => installment.paid_amount))
+  const overdue = sum(installments
+    .filter((installment) => installment.status !== 'paid' && installment.status !== 'cancelled' && (installment.status === 'overdue' || installment.due_date < localIsoDate()))
+    .map((installment) => Math.max(installment.amount - installment.paid_amount, 0)))
+  const total = sum(loanRows.map((loan) => loan.total_amount))
+  return {
+    total,
+    open: Math.max(total - paid, 0),
+    paid,
+    overdue,
+    clients: new Set(loanRows.map((loan) => loan.client_id)).size,
+  }
+}
+
+async function searchWalletClientIds(term: string): Promise<string[]> {
+  const safeTerm = term.trim().replace(/[,%()]/g, '')
+  if (!safeTerm) return []
+  const digits = safeTerm.replace(/\D/g, '')
+  const terms = digits && digits !== safeTerm ? [safeTerm, digits] : [safeTerm]
+  const filters = terms.flatMap((value) => [
+    `name.ilike.%${value}%`,
+    `document_number.ilike.%${value}%`,
+    `phone.ilike.%${value}%`,
+    `whatsapp.ilike.%${value}%`,
+  ])
+  const { data, error } = await supabase.from('clients').select('id').or(filters.join(',')).limit(1000)
+  if (error) throw error
+  return (data ?? []).map((client) => client.id)
+}
+
+async function resolveWalletInheritedLinks(filters: { routeId?: string; collectorId?: string }): Promise<{ routeClientIds: string[]; collectorRouteIds: string[]; collectorClientIds: string[] }> {
+  const routeClients = filters.routeId ? await supabase.from('clients').select('id').eq('route_id', filters.routeId) : { data: [], error: null }
+  if (routeClients.error) throw routeClients.error
+  const collectorRoutes = filters.collectorId ? await supabase.from('routes').select('id').eq('collector_id', filters.collectorId) : { data: [], error: null }
+  if (collectorRoutes.error) throw collectorRoutes.error
+  const collectorRouteIds = (collectorRoutes.data ?? []).map((route) => route.id)
+  const collectorClients = filters.collectorId
+    ? await supabase.from('clients').select('id').or([
+      `affiliate_id.eq.${filters.collectorId}`,
+      ...(collectorRouteIds.length ? [`route_id.in.(${collectorRouteIds.join(',')})`] : []),
+    ].join(','))
+    : { data: [], error: null }
+  if (collectorClients.error) throw collectorClients.error
+  return {
+    routeClientIds: (routeClients.data ?? []).map((client) => client.id),
+    collectorRouteIds,
+    collectorClientIds: (collectorClients.data ?? []).map((client) => client.id),
+  }
+}
+
+function validateSaleInput(input: SaleFormInput): void {
+  if (input.mode === 'existing' && !input.existingClientId) throw new Error('Selecione o cliente da venda.')
+  if (!input.loan.routeId) throw new Error('Selecione a rota da venda.')
+  if (!input.loan.collectorId) throw new Error('Selecione o afiliado responsavel pela venda.')
+  if (!(input.loan.borrowedAmount > 0)) throw new Error('Informe um valor emprestado maior que zero.')
+  if (!(input.loan.termDays > 0)) throw new Error('Informe a modalidade da venda.')
 }
 
 export async function fetchOpenInstallments(): Promise<EnrichedInstallment[]> {
@@ -355,7 +609,7 @@ export async function fetchCollectionInstallments(): Promise<EnrichedInstallment
 }
 
 async function fetchInstallmentsForQueue(includePaid: boolean): Promise<EnrichedInstallment[]> {
-  let query = supabase.from('installments').select('*').neq('status', 'cancelled').order('due_date').limit(includePaid ? 500 : 200)
+  let query = supabase.from('installments').select('*').neq('status', 'cancelled').order('due_date').limit(includePaid ? 1000 : 500)
   if (!includePaid) query = query.neq('status', 'paid')
   const { data, error } = await query
   if (error) throw error
@@ -389,6 +643,222 @@ export async function listRecentPayments(): Promise<RecentPaymentRecord[]> {
   }))
 }
 
+export async function listDailyBillingRows(): Promise<DailyBillingRow[]> {
+  await refreshOverdueAlerts()
+  const [installments, receivables, collectors] = await Promise.all([
+    fetchCollectionInstallments(),
+    fetchReceivables(),
+    listCollectors(),
+  ])
+  const histories = await fetchBillingHistory()
+  const collectorById = new Map(collectors.map((collector) => [collector.id, collector.full_name]))
+
+  const rowsFromInstallments: DailyBillingRow[] = installments
+    .filter((installment) => installment.client)
+    .map((installment) => {
+      const historiesForItem = histories.filter((history) => history.installment_id === installment.id)
+      const latestHistory = historiesForItem[0]
+      const loan = installment.loan
+      const client = installment.client!
+      const baseStatus = resolveInstallmentBillingStatus(installment)
+      const status = latestHistory && shouldUseHistoryStatus(baseStatus, latestHistory.new_status) ? latestHistory.new_status : baseStatus
+      const responsibleId = loan?.collector_id ?? client.affiliate_id ?? null
+      return {
+        id: `installment:${installment.id}`,
+        source: 'installment',
+        sourceId: installment.id,
+        ownerId: installment.owner_id,
+        clientId: client.id,
+        loanId: loan?.id ?? installment.loan_id,
+        installmentId: installment.id,
+        clientName: client.name,
+        description: `Parcela ${installment.installment_number}${loan ? ` da venda ${loan.id.slice(0, 8)}` : ''}`,
+        amount: installment.amount,
+        paidAmount: installment.paid_amount,
+        dueDate: installment.due_date,
+        paymentMethod: 'cash',
+        status,
+        phone: client.whatsapp ?? client.phone,
+        notes: latestHistory?.note ?? loan?.notes ?? null,
+        responsibleId,
+        responsibleName: responsibleId ? collectorById.get(responsibleId) ?? null : null,
+        lastBillingAt: latestHistory?.created_at ?? null,
+        nextAction: latestHistory?.note ?? null,
+        recurrence: loan?.payment_frequency ?? null,
+        paidAt: installment.paid_at,
+        histories: historiesForItem,
+      } satisfies DailyBillingRow
+    })
+
+  const clientIds = [...new Set(receivables.map((receivable) => receivable.client_id))]
+  const clients = clientIds.length ? await fetchClientsByIds(clientIds) : []
+  const clientById = new Map(clients.map((client) => [client.id, client]))
+  const rowsFromReceivables: DailyBillingRow[] = receivables.map((receivable) => {
+    const historiesForItem = histories.filter((history) => history.receivable_id === receivable.id)
+    const client = clientById.get(receivable.client_id)
+    return {
+      id: `receivable:${receivable.id}`,
+      source: 'receivable',
+      sourceId: receivable.id,
+      ownerId: receivable.owner_id,
+      clientId: receivable.client_id,
+      loanId: null,
+      installmentId: null,
+      clientName: client?.name ?? 'Cliente',
+      description: receivable.description,
+      amount: receivable.amount,
+      paidAmount: receivable.paid_amount,
+      dueDate: receivable.due_date,
+      paymentMethod: receivable.payment_method,
+      status: receivable.status,
+      phone: client?.whatsapp ?? client?.phone ?? null,
+      notes: receivable.notes,
+      responsibleId: receivable.responsible_id,
+      responsibleName: receivable.responsible_id ? collectorById.get(receivable.responsible_id) ?? null : null,
+      lastBillingAt: receivable.last_billing_at ?? historiesForItem[0]?.created_at ?? null,
+      nextAction: receivable.next_action,
+      recurrence: receivable.recurrence,
+      paidAt: receivable.paid_at,
+      histories: historiesForItem,
+      manualReceivable: receivable,
+    }
+  })
+
+  return [...rowsFromInstallments, ...rowsFromReceivables].sort((a, b) => a.dueDate.localeCompare(b.dueDate) || a.clientName.localeCompare(b.clientName))
+}
+
+export async function createReceivable(profile: Profile, input: ReceivableInput): Promise<string> {
+  validateReceivableInput(input)
+  const { data, error } = await supabase.from('receivables').insert({
+    owner_id: profile.id,
+    client_id: input.clientId,
+    description: input.description.trim(),
+    amount: input.amount,
+    paid_amount: 0,
+    due_date: input.dueDate,
+    payment_method: input.paymentMethod,
+    status: resolveDateBillingStatus(input.dueDate),
+    notes: input.notes?.trim() || null,
+    responsible_id: input.responsibleId || null,
+    recurrence: input.recurrence || null,
+  }).select('id').single()
+  if (error) throw error
+  await insertAuditLog(profile, 'receivables', data.id, 'insert', null, input)
+  return data.id
+}
+
+export async function updateReceivable(profile: Profile, receivableId: string, input: ReceivableInput): Promise<void> {
+  validateReceivableInput(input)
+  const { data: current, error: currentError } = await supabase.from('receivables').select('*').eq('id', receivableId).single()
+  if (currentError) throw currentError
+  const currentReceivable = current as ReceivableRecord
+  const nextStatus = currentReceivable.status === 'pago' || currentReceivable.status === 'cancelado' ? currentReceivable.status : resolveDateBillingStatus(input.dueDate)
+  const payload = {
+    client_id: input.clientId,
+    description: input.description.trim(),
+    amount: input.amount,
+    due_date: input.dueDate,
+    payment_method: input.paymentMethod,
+    status: nextStatus,
+    notes: input.notes?.trim() || null,
+    responsible_id: input.responsibleId || null,
+    recurrence: input.recurrence || null,
+  }
+  const { error } = await supabase.from('receivables').update(payload).eq('id', receivableId)
+  if (error) throw error
+  await insertAuditLog(profile, 'receivables', receivableId, 'update', currentReceivable, payload)
+}
+
+export async function deleteReceivable(profile: Profile, receivableId: string): Promise<void> {
+  const { data: current, error: currentError } = await supabase.from('receivables').select('*').eq('id', receivableId).single()
+  if (currentError) throw currentError
+  const { error } = await supabase.from('receivables').delete().eq('id', receivableId)
+  if (error) throw error
+  await insertAuditLog(profile, 'receivables', receivableId, 'delete', current, null)
+}
+
+export async function updateDailyBillingStatus(profile: Profile, row: DailyBillingRow, input: {
+  status: BillingStatus
+  note?: string
+  channel?: BillingChannel
+  nextAction?: string
+}): Promise<void> {
+  const nextStatus = input.status
+  if (row.source === 'installment') {
+    if (nextStatus === 'pago') {
+      const remaining = Math.max(row.amount - row.paidAmount, 0)
+      if (remaining > 0 && row.installmentId) {
+        await registerPayment(profile, {
+          installmentId: row.installmentId,
+          amountPaid: remaining,
+          paymentDate: localIsoDate(),
+          paymentMethod: normalizePaymentMethod(row.paymentMethod),
+          notes: input.note || 'Pagamento marcado pela tela Cobrancas.',
+          dailyLateFeePercent: 0,
+          applyLateFee: false,
+          lateFeeDays: 0,
+        })
+      }
+    } else if (nextStatus === 'cancelado' && row.installmentId) {
+      const { error } = await supabase.from('installments').update({ status: 'cancelled' }).eq('id', row.installmentId)
+      if (error) throw error
+    }
+  } else {
+    const payload: Partial<ReceivableRecord> = {
+      status: nextStatus,
+      notes: input.note?.trim() ? input.note.trim() : row.notes,
+      next_action: input.nextAction?.trim() || row.nextAction,
+    }
+    if (nextStatus === 'pago') {
+      payload.paid_amount = row.amount
+      payload.paid_at = localIsoDate()
+    }
+    if (nextStatus === 'cobranca_enviada' || nextStatus === 'negociado') {
+      payload.last_billing_at = new Date().toISOString()
+    }
+    const { error } = await supabase.from('receivables').update(payload).eq('id', row.sourceId)
+    if (error) throw error
+  }
+
+  await createBillingHistory(profile, row, {
+    previousStatus: row.status,
+    newStatus: nextStatus,
+    note: input.note,
+    channel: input.channel ?? 'other',
+  })
+}
+
+export async function addBillingObservation(profile: Profile, row: DailyBillingRow, note: string, channel: BillingChannel = 'other'): Promise<void> {
+  await createBillingHistory(profile, row, {
+    previousStatus: row.status,
+    newStatus: row.status,
+    note,
+    channel,
+  })
+}
+
+async function createBillingHistory(profile: Profile, row: DailyBillingRow, input: {
+  previousStatus: BillingStatus | null
+  newStatus: BillingStatus
+  note?: string
+  channel: BillingChannel
+}): Promise<void> {
+  const { data, error } = await supabase.from('billing_history').insert({
+    owner_id: row.ownerId,
+    client_id: row.clientId,
+    loan_id: row.loanId,
+    installment_id: row.installmentId,
+    receivable_id: row.source === 'receivable' ? row.sourceId : null,
+    previous_status: input.previousStatus,
+    new_status: input.newStatus,
+    note: input.note?.trim() || null,
+    responsible_id: profile.id,
+    channel: input.channel,
+  }).select('id').single()
+  if (error) throw error
+  await insertAuditLog(profile, 'billing_history', data.id, 'insert', null, input)
+}
+
 export async function refreshOverdueAlerts(): Promise<void> {
   const { error } = await supabase.rpc('refresh_overdue_alerts')
   if (error && !isMissingRpc(error)) throw error
@@ -402,12 +872,20 @@ export async function registerPayment(profile: Profile, input: {
   cashboxId?: string
   notes?: string
   dailyLateFeePercent: number
+  applyLateFee?: boolean
+  lateFeeDays?: number
 }): Promise<string> {
   const { data: installment, error: installmentError } = await supabase.from('installments').select('*').eq('id', input.installmentId).single()
   if (installmentError) throw installmentError
   const currentInstallment = installment as InstallmentRecord
   const remainingInstallment = Math.max(currentInstallment.amount - currentInstallment.paid_amount, 0)
-  const lateFee = calculateLateFee({ remainingInstallmentAmount: remainingInstallment, dailyLateFeePercent: input.dailyLateFeePercent, dueDate: currentInstallment.due_date, paymentDate: input.paymentDate })
+  const lateFee = calculateLateFee({
+    remainingInstallmentAmount: remainingInstallment,
+    dailyLateFeePercent: input.applyLateFee === false ? 0 : input.dailyLateFeePercent,
+    dueDate: currentInstallment.due_date,
+    paymentDate: input.paymentDate,
+    fixedDaysLate: input.applyLateFee === false ? 0 : Math.max(1, Math.floor(input.lateFeeDays ?? 1)),
+  })
   const { data: rpcPaymentId, error: rpcError } = await supabase.rpc('register_installment_payment', {
     p_installment_id: input.installmentId,
     p_amount_paid: input.amountPaid,
@@ -593,8 +1071,21 @@ export async function insertAuditLog(profile: Profile, tableName: string, record
 }
 
 async function createClientForSale(ownerId: string, client: SaleFormInput['client'], routeId?: string, affiliateId?: string): Promise<string> {
-  const notes = [client.notes, client.rg ? `RG: ${client.rg}` : '', client.whatsapp ? `WhatsApp: ${client.whatsapp}` : '', client.neighborhood ? `Bairro: ${client.neighborhood}` : '', client.reference_point ? `Referencia: ${client.reference_point}` : ''].filter(Boolean).join('\n')
-  const { data, error } = await supabase.from('clients').insert({ owner_id: ownerId, route_id: routeId || null, affiliate_id: affiliateId || null, name: client.name, document_number: client.document_number || null, phone: client.phone || null, address: client.address || null, city: client.city || null, notes: notes || null }).select('id').single()
+  const { data, error } = await supabase.from('clients').insert({
+    owner_id: ownerId,
+    route_id: routeId || null,
+    affiliate_id: affiliateId || null,
+    name: client.name,
+    document_number: client.document_number || null,
+    rg: client.rg || null,
+    phone: client.phone || null,
+    whatsapp: client.whatsapp || null,
+    address: client.address || null,
+    neighborhood: client.neighborhood || null,
+    city: client.city || null,
+    reference_point: client.reference_point || null,
+    notes: client.notes || null,
+  }).select('id').single()
   if (error) throw error
   return data.id
 }
@@ -634,8 +1125,57 @@ async function applyCashMovement(profile: Profile, input: {
   return movement.id
 }
 
+async function fetchReceivables(): Promise<ReceivableRecord[]> {
+  const { data, error } = await supabase.from('receivables').select('*').order('due_date', { ascending: true }).limit(1000)
+  if (error) {
+    if (isMissingTable(error)) return []
+    throw error
+  }
+  return (data ?? []) as ReceivableRecord[]
+}
+
+async function fetchBillingHistory(): Promise<BillingHistoryRecord[]> {
+  const { data, error } = await supabase.from('billing_history').select('*').order('created_at', { ascending: false }).limit(3000)
+  if (error) {
+    if (isMissingTable(error)) return []
+    throw error
+  }
+  return (data ?? []) as BillingHistoryRecord[]
+}
+
+function resolveInstallmentBillingStatus(installment: InstallmentRecord): BillingStatus {
+  if (installment.status === 'paid') return 'pago'
+  if (installment.status === 'partial') return 'parcialmente_pago'
+  if (installment.status === 'cancelled') return 'cancelado'
+  return resolveDateBillingStatus(installment.due_date)
+}
+
+function resolveDateBillingStatus(dueDate: string): BillingStatus {
+  const today = localIsoDate()
+  if (dueDate < today) return 'em_atraso'
+  if (dueDate === today) return 'vence_hoje'
+  return 'a_receber'
+}
+
+function shouldUseHistoryStatus(baseStatus: BillingStatus, historyStatus: BillingStatus): boolean {
+  if (baseStatus === 'pago' || baseStatus === 'parcialmente_pago' || baseStatus === 'cancelado') return false
+  return historyStatus === 'cobranca_enviada' || historyStatus === 'negociado'
+}
+
+function validateReceivableInput(input: ReceivableInput): void {
+  if (!input.clientId) throw new Error('Selecione o cliente do recebimento.')
+  if (!input.description.trim()) throw new Error('Informe a descricao do pagamento.')
+  if (!(input.amount > 0)) throw new Error('Informe um valor maior que zero.')
+  if (!input.dueDate) throw new Error('Informe a data de vencimento.')
+  if (!input.paymentMethod) throw new Error('Informe a forma de pagamento.')
+}
+
+function normalizePaymentMethod(paymentMethod: string): string {
+  return ['cash', 'pix', 'bank_transfer', 'debit_card', 'credit_card', 'other'].includes(paymentMethod) ? paymentMethod : 'cash'
+}
+
 async function fetchClientsByIds(ids: string[]): Promise<ClientRecord[]> {
-  const { data, error } = await supabase.from('clients').select('id, owner_id, route_id, affiliate_id, name, document_number, phone, email, address, city, state, postal_code, notes, is_active').in('id', ids)
+  const { data, error } = await supabase.from('clients').select('id, owner_id, route_id, affiliate_id, name, document_number, rg, phone, whatsapp, email, address, neighborhood, city, state, postal_code, reference_point, notes, status, is_active').in('id', ids)
   if (error) throw error
   return (data ?? []) as ClientRecord[]
 }
@@ -674,4 +1214,8 @@ function roundMoney(value: number): number {
 
 function isMissingRpc(error: { code?: string; message?: string }): boolean {
   return error.code === 'PGRST202' || Boolean(error.message?.includes('Could not find the function'))
+}
+
+function isMissingTable(error: { code?: string; message?: string }): boolean {
+  return error.code === '42P01' || error.code === 'PGRST205' || Boolean(error.message?.includes('Could not find the table'))
 }

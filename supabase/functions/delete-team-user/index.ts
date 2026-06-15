@@ -25,22 +25,46 @@ Deno.serve(async (request) => {
     if (!userId) throw new Error('Usuario nao informado.')
     if (userId === caller.user.id) throw new Error('Voce nao pode excluir o usuario conectado.')
 
-    const links = await Promise.all([
-      admin.from('routes').select('id').eq('collector_id', userId).limit(1),
-      admin.from('clients').select('id').eq('affiliate_id', userId).limit(1),
-      admin.from('loans').select('id').eq('collector_id', userId).limit(1),
-      admin.from('collection_logs').select('id').eq('collector_id', userId).limit(1),
+    const ownedRecords = await Promise.all([
+      admin.from('routes').select('id').eq('owner_id', userId).limit(1),
+      admin.from('clients').select('id').eq('owner_id', userId).limit(1),
+      admin.from('loans').select('id').eq('owner_id', userId).limit(1),
+      admin.from('payments').select('id').eq('owner_id', userId).limit(1),
+      admin.from('cashboxes').select('id').eq('owner_id', userId).limit(1),
+      admin.from('cash_movements').select('id').eq('owner_id', userId).limit(1),
+      admin.from('expenses').select('id').eq('owner_id', userId).limit(1),
+      admin.from('collection_logs').select('id').eq('owner_id', userId).limit(1),
     ])
-    const lookupError = links.find((result) => result.error)?.error
+    const lookupError = ownedRecords.find((result) => result.error)?.error
     if (lookupError) throw lookupError
-    if (links.some((result) => result.data?.length)) {
-      throw new Error('Este usuario possui vinculos operacionais. Use Desativar para preservar o historico.')
+    if (ownedRecords.some((result) => result.data?.length)) {
+      throw new Error('Este usuario criou registros operacionais. Use Desativar para preservar o historico financeiro.')
     }
 
+    const unlinkOperations = await Promise.all([
+      admin.from('routes').update({ collector_id: null }).eq('collector_id', userId),
+      admin.from('clients').update({ affiliate_id: null }).eq('affiliate_id', userId),
+      admin.from('loans').update({ collector_id: null }).eq('collector_id', userId),
+      admin.from('collection_logs').update({ collector_id: null }).eq('collector_id', userId),
+      admin.from('expenses').update({ responsible_id: null }).eq('responsible_id', userId),
+      admin.from('audit_logs').update({ actor_id: null }).eq('actor_id', userId),
+      admin.from('client_documents').update({ uploaded_by: null }).eq('uploaded_by', userId),
+    ])
+    const unlinkError = unlinkOperations.find((result) => result.error)?.error
+    if (unlinkError) throw unlinkError
+
     const { error: deleteError } = await admin.auth.admin.deleteUser(userId)
-    if (deleteError) throw deleteError
+    if (deleteError && !isAuthUserNotFound(deleteError)) throw deleteError
+    if (deleteError) {
+      const { error: profileDeleteError } = await admin.from('profiles').delete().eq('id', userId)
+      if (profileDeleteError) throw profileDeleteError
+    }
     return new Response(JSON.stringify({ id: userId }), { headers })
   } catch (error) {
     return new Response(JSON.stringify({ error: error instanceof Error ? error.message : 'Erro ao excluir usuario.' }), { headers, status: 400 })
   }
 })
+
+function isAuthUserNotFound(error: unknown): boolean {
+  return error instanceof Error && error.message.toLowerCase().includes('user not found')
+}

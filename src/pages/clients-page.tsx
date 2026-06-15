@@ -2,9 +2,11 @@ import { MessageCircle, Pencil, Plus, Trash2, UserRoundPlus, X } from 'lucide-re
 import { FormEvent, useCallback, useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 
+import { ConfirmDialog } from '../components/confirm-dialog'
 import { MaskedInput } from '../components/masked-input'
-import { useAuth } from '../contexts/auth-context'
+import { useAuth } from '../hooks/use-auth'
 import { useAsyncData } from '../hooks/use-async-data'
+import { createWhatsappUrl } from '../lib/contact-links'
 import { getOperationErrorMessage } from '../lib/errors'
 import { formatCurrency, nullableText } from '../lib/formatters'
 import { maskDocument, maskPhone } from '../lib/masks'
@@ -15,17 +17,20 @@ export function ClientsPage() {
   const { profile } = useAuth()
   const [searchParams] = useSearchParams()
   const [term, setTerm] = useState(() => searchParams.get('search') ?? '')
-  const [routeId, setRouteId] = useState('')
+  const [routeId, setRouteId] = useState(() => searchParams.get('routeId') ?? '')
   const [collectorId, setCollectorId] = useState('')
   const [status, setStatus] = useState('all')
   const [creating, setCreating] = useState(false)
   const [message, setMessage] = useState('')
+  const [clientToDelete, setClientToDelete] = useState<{ id: string; name: string } | null>(null)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
   const options = useAsyncData(getSelectOptions, { routes: [], collectors: [], cashboxes: [] })
   const loader = useCallback(() => listClientsWithTotals(term, { routeId, status, collectorId }), [term, routeId, status, collectorId])
   const { data: clients, loading, error, reload } = useAsyncData(loader, [])
 
   useEffect(() => {
     setTerm(searchParams.get('search') ?? '')
+    setRouteId(searchParams.get('routeId') ?? '')
   }, [searchParams])
 
   async function handleCreateClient(event: FormEvent<HTMLFormElement>) {
@@ -58,15 +63,20 @@ export function ClientsPage() {
     }
   }
 
-  async function deleteClient(id: string, name: string) {
-    if (!window.confirm(`Excluir o cliente "${name}"? Esta acao nao pode ser desfeita.`)) return
+  async function deleteClient() {
+    if (!clientToDelete) return
+    setDeletingId(clientToDelete.id)
     try {
-      const { error: deleteError } = await supabase.rpc('purge_client_permanently', { p_client_id: id })
+      const { data, error: deleteError } = await supabase.rpc('delete_or_archive_client', { p_client_id: clientToDelete.id })
       if (deleteError) throw deleteError
-      setMessage('Cliente excluido.')
+      const result = data as { mode?: string } | null
+      setMessage(result?.mode === 'archived' ? 'Cliente arquivado. O historico financeiro foi preservado.' : 'Cliente excluido.')
+      setClientToDelete(null)
       reload()
     } catch (deleteError) {
       setMessage(getOperationErrorMessage(deleteError, 'excluir o cliente'))
+    } finally {
+      setDeletingId(null)
     }
   }
 
@@ -117,22 +127,7 @@ export function ClientsPage() {
 
       <div className="mobile-card-list">
         {clients.map((client) => (
-          <article className="mobile-data-card" key={client.id}>
-            <strong>{client.name}</strong>
-            <span>{client.phone ?? client.whatsapp ?? 'Sem telefone'}</span>
-            <small>{client.route_name ?? 'Sem rota'} | {client.affiliate_name ?? 'Sem afiliado'} | {client.status}</small>
-            <div className="mini-totals">
-              <b>{formatCurrency(client.total_to_pay)}</b>
-              <b>{formatCurrency(client.total_paid)}</b>
-              <b>{formatCurrency(client.total_open)}</b>
-            </div>
-            <div className="button-row">
-              <Link className="button-link" to={`/clientes/${client.id}`}>Detalhes</Link>
-              <Link className="button-link secondary-button" to={`/clientes/${client.id}?edit=1`}><Pencil size={16} />Editar</Link>
-              <button className="destructive-button" onClick={() => deleteClient(client.id, client.name)} type="button"><Trash2 size={16} />Excluir</button>
-              {client.whatsapp ? <a className="button-link" href={`https://wa.me/${client.whatsapp}`} rel="noreferrer" target="_blank"><MessageCircle size={17} />WhatsApp</a> : null}
-            </div>
-          </article>
+          <ClientMobileCard client={client} key={client.id} onDelete={(id, name) => setClientToDelete({ id, name })} />
         ))}
       </div>
 
@@ -143,12 +138,44 @@ export function ClientsPage() {
             {clients.map((client) => (
               <tr key={client.id}>
                 <td><Link to={`/clientes/${client.id}`}>{client.name}</Link></td><td>{client.phone ?? client.whatsapp ?? '-'}</td><td>{client.route_name ?? '-'}</td><td>{client.affiliate_name ?? '-'}</td>
-                <td>{formatCurrency(client.total_to_pay)}</td><td>{formatCurrency(client.total_paid)}</td><td>{formatCurrency(client.total_open)}</td><td>{client.status}</td><td><div className="button-row compact-actions"><Link className="button-link secondary-button" to={`/clientes/${client.id}?edit=1`}><Pencil size={15} />Editar</Link><button className="destructive-button" onClick={() => deleteClient(client.id, client.name)} type="button"><Trash2 size={15} />Excluir</button></div></td>
+                <td>{formatCurrency(client.total_to_pay)}</td><td>{formatCurrency(client.total_paid)}</td><td>{formatCurrency(client.total_open)}</td><td>{client.status}</td><td><div className="button-row compact-actions"><Link className="button-link secondary-button" to={`/clientes/${client.id}?edit=1`}><Pencil size={15} />Editar</Link><button className="destructive-button" onClick={() => setClientToDelete({ id: client.id, name: client.name })} type="button"><Trash2 size={15} />Excluir</button></div></td>
               </tr>
             ))}
           </tbody>
         </table>
       </section>
+      <ConfirmDialog
+        open={Boolean(clientToDelete)}
+        title="Confirmar exclusao"
+        description={`Excluir o cliente "${clientToDelete?.name ?? ''}"? Clientes com historico financeiro serao arquivados para preservar os registros.`}
+        confirmLabel="Excluir cliente"
+        loading={deletingId === clientToDelete?.id}
+        onClose={() => setClientToDelete(null)}
+        onConfirm={deleteClient}
+      />
     </section>
+  )
+}
+
+function ClientMobileCard({ client, onDelete }: { client: Awaited<ReturnType<typeof listClientsWithTotals>>[number]; onDelete: (id: string, name: string) => void }) {
+  const whatsappUrl = createWhatsappUrl(client.whatsapp ?? client.phone)
+
+  return (
+    <article className="mobile-data-card">
+      <strong>{client.name}</strong>
+      <span>{client.phone ?? client.whatsapp ?? 'Sem telefone'}</span>
+      <small>{client.route_name ?? 'Sem rota'} | {client.affiliate_name ?? 'Sem afiliado'} | {client.status}</small>
+      <div className="mini-totals">
+        <b>{formatCurrency(client.total_to_pay)}</b>
+        <b>{formatCurrency(client.total_paid)}</b>
+        <b>{formatCurrency(client.total_open)}</b>
+      </div>
+      <div className="button-row">
+        <Link className="button-link" to={`/clientes/${client.id}`}>Detalhes</Link>
+        <Link className="button-link secondary-button" to={`/clientes/${client.id}?edit=1`}><Pencil size={16} />Editar</Link>
+        <button className="destructive-button" onClick={() => onDelete(client.id, client.name)} type="button"><Trash2 size={16} />Excluir</button>
+        {whatsappUrl ? <a className="button-link" href={whatsappUrl} rel="noreferrer" target="_blank"><MessageCircle size={17} />WhatsApp</a> : null}
+      </div>
+    </article>
   )
 }

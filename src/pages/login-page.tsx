@@ -2,7 +2,7 @@ import { Clock, LockKeyhole, Mail, ShieldCheck, UserRound } from 'lucide-react'
 import { FormEvent, useState } from 'react'
 import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 
-import { useAuth } from '../contexts/auth-context'
+import { useAuth } from '../hooks/use-auth'
 
 export function LoginPage() {
   const { accessBlock, clearAccessBlock, session, signIn, signUp, resetPassword } = useAuth()

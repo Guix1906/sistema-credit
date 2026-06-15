@@ -1,35 +1,35 @@
 import { useCallback, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 
 import { useAsyncData } from '../hooks/use-async-data'
 import { formatCurrency } from '../lib/formatters'
-import { getSelectOptions, listWalletRows } from '../services/finance-service'
+import { getWalletFilterOptions, getWalletMetrics, listWalletRows } from '../services/finance-service'
 
 export function WalletPage() {
-  const [filters, setFilters] = useState({ status: 'all', routeId: '', collectorId: '', term: '', page: 0, pageSize: 25 })
-  const options = useAsyncData(getSelectOptions, { routes: [], collectors: [], cashboxes: [] })
+  const [searchParams] = useSearchParams()
+  const [filters, setFilters] = useState({ status: 'all', routeId: searchParams.get('routeId') ?? '', collectorId: '', clientId: '', term: '', page: 0, pageSize: 25 })
+  const options = useAsyncData(getWalletFilterOptions, { routes: [], collectors: [], clients: [], statuses: [] })
   const loader = useCallback(() => listWalletRows(filters), [filters])
   const { data: rows, loading, error } = useAsyncData(loader, [])
-  const total = rows.reduce((sum, row) => sum + row.loan.total_amount, 0)
-  const open = rows.reduce((sum, row) => sum + (row.loan.remaining_amount ?? 0), 0)
-  const paid = rows.reduce((sum, row) => sum + (row.loan.paid_amount ?? 0), 0)
-  const overdue = rows.filter((row) => row.loan.status === 'overdue' || row.loan.status === 'defaulted').reduce((sum, row) => sum + (row.loan.remaining_amount ?? 0), 0)
+  const metricsLoader = useCallback(() => getWalletMetrics(filters), [filters])
+  const metrics = useAsyncData(metricsLoader, { total: 0, open: 0, paid: 0, overdue: 0, clients: 0 })
 
   return (
     <section className="page-stack">
       <div className="page-title-row"><div><h1>Carteira</h1><p>Total em aberto, vencido, atrasado, pago e clientes da carteira.</p></div></div>
       <div className="summary-grid">
-        <Metric label="Total carteira" value={formatCurrency(total)} />
-        <Metric label="Total em aberto" value={formatCurrency(open)} />
-        <Metric label="Total atrasado" value={formatCurrency(overdue)} />
-        <Metric label="Total pago" value={formatCurrency(paid)} />
-        <Metric label="Quantidade de clientes" value={String(new Set(rows.map((row) => row.loan.client_id)).size)} />
+        <Metric label="Total carteira" value={formatCurrency(metrics.data.total)} />
+        <Metric label="Total em aberto" value={formatCurrency(metrics.data.open)} />
+        <Metric label="Total atrasado" value={formatCurrency(metrics.data.overdue)} />
+        <Metric label="Total pago" value={formatCurrency(metrics.data.paid)} />
+        <Metric label="Quantidade de clientes" value={String(metrics.data.clients)} />
       </div>
       <section className="content-panel filter-grid-desktop">
-        <select value={filters.routeId} onChange={(event) => setFilters((current) => ({ ...current, routeId: event.target.value }))}><option value="">Todas as rotas</option>{options.data.routes.map((route) => <option key={route.id} value={route.id}>{route.name}</option>)}</select>
-        <select value={filters.collectorId} onChange={(event) => setFilters((current) => ({ ...current, collectorId: event.target.value }))}><option value="">Todos os afiliados</option>{options.data.collectors.map((affiliate) => <option key={affiliate.id} value={affiliate.id}>{affiliate.full_name}</option>)}</select>
-        <select value={filters.status} onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value }))}><option value="all">Todos os status</option><option value="active">Em dia</option><option value="overdue">Atrasadas</option><option value="defaulted">Vencidas</option><option value="paid">Quitadas</option></select>
-        <input placeholder="Nome do cliente" value={filters.term} onChange={(event) => setFilters((current) => ({ ...current, term: event.target.value }))} />
+        <select value={filters.routeId} onChange={(event) => setFilters((current) => ({ ...current, routeId: event.target.value, page: 0 }))}><option value="">Todas as rotas</option>{options.data.routes.map((route) => <option key={route.id} value={route.id}>{route.name}{route.is_active ? '' : ' (inativa)'}</option>)}</select>
+        <select value={filters.collectorId} onChange={(event) => setFilters((current) => ({ ...current, collectorId: event.target.value, page: 0 }))}><option value="">Todos os afiliados</option>{options.data.collectors.map((affiliate) => <option key={affiliate.id} value={affiliate.id}>{affiliate.full_name}{affiliate.is_active ? '' : ' (inativo)'}</option>)}</select>
+        <select value={filters.clientId} onChange={(event) => setFilters((current) => ({ ...current, clientId: event.target.value, page: 0 }))}><option value="">Todos os clientes</option>{options.data.clients.map((client) => <option key={client.id} value={client.id}>{client.name}{client.document_number || client.phone ? ` - ${client.document_number ?? client.phone}` : ''}</option>)}</select>
+        <select value={filters.status} onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value, page: 0 }))}><option value="all">Todos os status</option>{options.data.statuses.map((status) => <option key={status} value={status}>{formatLoanStatus(status)}</option>)}</select>
+        <input placeholder="Buscar cliente por nome, CPF ou telefone" value={filters.term} onChange={(event) => setFilters((current) => ({ ...current, term: event.target.value, page: 0 }))} />
       </section>
       {error ? <p className="form-message">{error}</p> : null}
       {loading ? <div className="skeleton-card" /> : null}
@@ -50,4 +50,15 @@ export function WalletPage() {
 
 function Metric({ label, value }: { label: string; value: string }) {
   return <article className="metric-card"><span>{label}</span><strong>{value}</strong></article>
+}
+
+function formatLoanStatus(status: string) {
+  return {
+    active: 'Em dia',
+    overdue: 'Atrasada',
+    defaulted: 'Vencida',
+    paid: 'Quitada',
+    draft: 'Rascunho',
+    cancelled: 'Cancelada',
+  }[status] ?? status
 }

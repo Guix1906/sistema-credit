@@ -1,25 +1,37 @@
 import { FileText, RotateCcw, Send, ShoppingCart } from 'lucide-react'
-import { FormEvent, useMemo, useState } from 'react'
+import { FormEvent, useCallback, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
+import { useAuth } from '../hooks/use-auth'
 import { localIsoDate } from '../lib/dates'
 import { formatCurrency, formatDate, toNumber } from '../lib/formatters'
 import { calculateLoan, type LoanCalculationResult, type LoanTermDays, type PaymentFrequency } from '../lib/loan-calculator'
-import { getSelectOptions } from '../services/finance-service'
+import { getActiveLoanSettings, getSelectOptions } from '../services/finance-service'
 import { useAsyncData } from '../hooks/use-async-data'
+import { getAppSettings } from '../services/settings-service'
 
 const today = localIsoDate()
+const fallbackModalities = [20, 24, 30]
 
 export function SimulatorPage() {
+  const { profile } = useAuth()
   const navigate = useNavigate()
   const options = useAsyncData(getSelectOptions, { routes: [], collectors: [], cashboxes: [] })
+  const loanSettingsLoader = useCallback(() => getActiveLoanSettings(profile?.id), [profile?.id])
+  const appSettingsLoader = useCallback(() => profile ? getAppSettings(profile.id) : Promise.resolve(null), [profile?.id])
+  const loanSettings = useAsyncData(loanSettingsLoader, null)
+  const appSettings = useAsyncData(appSettingsLoader, null)
   const [result, setResult] = useState<LoanCalculationResult | null>(null)
-  const [simulationMeta, setSimulationMeta] = useState({ routeId: '', collectorId: '', cashboxId: '' })
+  const [simulationMeta, setSimulationMeta] = useState({ routeId: '', collectorId: '', cashboxId: '', startDate: today })
   const [formKey, setFormKey] = useState(0)
+  const modalities = appSettings.data?.modalities?.length ? appSettings.data.modalities : fallbackModalities
+  const defaultTermDays = modalities[0] ?? 20
+  const defaultFrequency = loanSettings.data?.default_frequency ?? 'daily'
+  const defaultInterestRate = loanSettings.data?.interest_rate ?? 20
   const whatsappText = useMemo(() => {
     if (!result) return ''
     return encodeURIComponent(
-      `Simulação de empréstimo\nValor: ${formatCurrency(result.borrowedAmount)}\nJuros: ${formatCurrency(result.interestAmount)}\nTotal: ${formatCurrency(result.totalReceivable)}\nParcelas: ${result.installmentCount}x de ${formatCurrency(result.installmentAmount)}`,
+      `Simulação de empréstimo\nValor: ${formatCurrency(result.borrowedAmount)}\nTaxa: ${result.interestRatePercent}%\nValor da taxa: ${formatCurrency(result.interestAmount)}\nTotal: ${formatCurrency(result.totalReceivable)}\nParcelas: ${result.installmentCount}x de ${formatCurrency(result.installmentAmount)}`,
     )
   }, [result])
 
@@ -30,6 +42,7 @@ export function SimulatorPage() {
       routeId: String(formData.get('routeId') ?? ''),
       collectorId: String(formData.get('collectorId') ?? ''),
       cashboxId: String(formData.get('cashboxId') ?? ''),
+      startDate: String(formData.get('startDate') ?? today),
     })
     setResult(
       calculateLoan({
@@ -52,31 +65,29 @@ export function SimulatorPage() {
       <div className="page-title-row">
         <div>
           <h1>Simulador</h1>
-          <p>Calcule juros, parcelas, datas e lucro previsto antes de converter em venda.</p>
+          <p>Calcule taxa, parcelas, datas e lucro previsto antes de converter em venda.</p>
         </div>
       </div>
 
       <div className="form-layout">
-        <form className="content-panel form-grid" key={formKey} onSubmit={handleSubmit}>
+        <form className="content-panel form-grid" key={`${formKey}-${defaultInterestRate}-${defaultTermDays}-${defaultFrequency}-${modalities.join(',')}`} onSubmit={handleSubmit}>
           <label>
             Valor emprestado
             <input name="borrowedAmount" placeholder="200,00" required type="number" min="1" step="0.01" defaultValue="200" />
           </label>
           <label>
-            Taxa de juros (%)
-            <input name="interestRatePercent" required type="number" min="0" step="0.01" defaultValue="20" />
+            Taxa (%)
+            <input name="interestRatePercent" required type="number" min="0" step="0.01" defaultValue={defaultInterestRate} />
           </label>
           <label>
             Modalidade
-            <select name="termDays" defaultValue="20">
-              <option value="20">20 dias</option>
-              <option value="24">24 dias</option>
-              <option value="30">30 dias</option>
+            <select name="termDays" defaultValue={defaultTermDays}>
+              {modalities.map((days) => <option key={days} value={days}>{days} dias</option>)}
             </select>
           </label>
           <label>
             Forma de pagamento
-            <select name="paymentFrequency" defaultValue="daily">
+            <select name="paymentFrequency" defaultValue={defaultFrequency}>
               <option value="daily">Diária</option>
               <option value="weekly">Semanal</option>
               <option value="biweekly">Quinzenal</option>
@@ -89,8 +100,8 @@ export function SimulatorPage() {
           </label>
           <label>
             Rota
-            <select name="routeId">
-              <option value="">Sem rota</option>
+            <select name="routeId" required>
+              <option value="">Selecione a rota</option>
               {options.data.routes.map((route) => (
                 <option key={route.id} value={route.id}>{route.name}</option>
               ))}
@@ -98,8 +109,8 @@ export function SimulatorPage() {
           </label>
           <label>
             Afiliado responsavel
-            <select name="collectorId">
-              <option value="">Sem afiliado</option>
+            <select name="collectorId" required>
+              <option value="">Selecione o afiliado</option>
               {options.data.collectors.map((collector) => (
                 <option key={collector.id} value={collector.id}>{collector.full_name}</option>
               ))}
@@ -126,7 +137,7 @@ export function SimulatorPage() {
             <>
               <div className="result-grid">
                 <ResultItem label="Valor emprestado" value={formatCurrency(result.borrowedAmount)} />
-                <ResultItem label="Juros" value={formatCurrency(result.interestAmount)} />
+                <ResultItem label="Valor da taxa" value={formatCurrency(result.interestAmount)} />
                 <ResultItem label="Total a receber" value={formatCurrency(result.totalReceivable)} />
                 <ResultItem label="Lucro previsto" value={formatCurrency(result.expectedProfit)} />
                 <ResultItem label="Quantidade de parcelas" value={String(result.installmentCount)} />

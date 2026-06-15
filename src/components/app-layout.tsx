@@ -1,11 +1,12 @@
 import { Bell, ChevronDown, LogOut, Menu, Search, UserRound, X } from 'lucide-react'
-import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react'
+import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 
 import { navigationGroups, navigationItems } from '../config/navigation'
-import { useAuth } from '../contexts/auth-context'
+import { useAuth } from '../hooks/use-auth'
 import { useAsyncData } from '../hooks/use-async-data'
 import { supabase } from '../lib/supabase'
+import { getUserDisplayName } from '../lib/user-display-name'
 
 const mobilePrimaryPaths = new Set(['/', '/simulador', '/clientes', '/cobrancas', '/pagamentos'])
 
@@ -27,9 +28,10 @@ export function AppLayout() {
     .filter((group) => group.items.length), [profile?.role])
   const visibleItems = useMemo(() => visibleGroups.flatMap((group) => group.items), [visibleGroups])
   const mobilePrimaryItems = visibleItems.filter((item) => mobilePrimaryPaths.has(item.path))
-  const userName = profile?.full_name ?? user?.email ?? 'Usuario'
+  const userName = getUserDisplayName(profile, user)
   const alerts = useAsyncData(listOpenAlerts, [] as AlertSummary[])
-  const appSettings = useAsyncData(getLayoutSettings, null)
+  const appSettingsLoader = useCallback(() => getLayoutSettings(profile?.id), [profile?.id])
+  const appSettings = useAsyncData(appSettingsLoader, null)
 
   useEffect(() => {
     function closeProfileMenu(event: MouseEvent) {
@@ -38,6 +40,12 @@ export function AppLayout() {
     document.addEventListener('mousedown', closeProfileMenu)
     return () => document.removeEventListener('mousedown', closeProfileMenu)
   }, [])
+
+  useEffect(() => {
+    setDrawerOpen(false)
+    setNotificationsOpen(false)
+    setProfileOpen(false)
+  }, [location.pathname])
 
   async function resolveAlert(id: string) {
     const { error } = await supabase.from('alerts').update({ status: 'resolved', resolved_at: new Date().toISOString() }).eq('id', id)
@@ -65,12 +73,12 @@ export function AppLayout() {
           <div className="route-heading"><span>Rota atual</span><strong>{currentRoute.label}</strong></div>
           <form className="topbar-search" onSubmit={submitSearch}><Search aria-hidden="true" size={18} /><input onChange={(event) => setSearchTerm(event.target.value)} placeholder="Buscar cliente, CPF ou telefone" type="search" value={searchTerm} /></form>
           <div className="topbar-actions">
-            <button className="icon-button" onClick={() => { setProfileOpen(false); setNotificationsOpen((open) => !open) }} type="button" aria-label="Notificacoes">
+            <button className="icon-button" aria-expanded={notificationsOpen} aria-haspopup="dialog" onClick={() => { setProfileOpen(false); setNotificationsOpen((open) => !open) }} type="button" aria-label="Notificacoes">
               <Bell size={19} />
               {alerts.data.length ? <span className="notification-dot" /> : null}
             </button>
             {notificationsOpen ? (
-              <section className="notification-panel">
+              <section className="notification-panel" aria-label="Notificacoes abertas">
                 <strong>Notificacoes</strong>
                 {alerts.data.map((alert) => (
                   <article key={alert.id}>
@@ -90,7 +98,7 @@ export function AppLayout() {
               </button>
               {profileOpen ? (
                 <section className="profile-panel">
-                  <div className="profile-panel-heading"><UserRound size={18} /><div><strong>{userName}</strong><small>{user?.email ?? profile?.email ?? '-'}</small></div></div>
+                  <div className="profile-panel-heading"><UserRound size={18} /><div><strong>{userName}</strong><small>{profile?.email ?? user?.email ?? '-'}</small></div></div>
                   <div className="profile-panel-meta"><span>Perfil de acesso</span><b>{profile?.role ?? 'sem perfil'}</b></div>
                   <button className="profile-logout-button" onClick={signOut} type="button"><LogOut size={17} />Sair do sistema</button>
                 </section>
@@ -131,8 +139,15 @@ async function listOpenAlerts(): Promise<AlertSummary[]> {
   return data ?? []
 }
 
-async function getLayoutSettings(): Promise<{ system_name: string; logo_path: string | null } | null> {
-  const { data } = await supabase.from('app_settings').select('system_name, logo_path').maybeSingle()
+async function getLayoutSettings(ownerId?: string): Promise<{ system_name: string; logo_path: string | null } | null> {
+  if (!ownerId) return null
+  const currentSettings = await supabase.rpc('get_current_app_settings')
+  if (!currentSettings.error) {
+    const row = Array.isArray(currentSettings.data) ? currentSettings.data[0] : currentSettings.data
+    return (row as { system_name: string; logo_path: string | null } | undefined) ?? null
+  }
+
+  const { data } = await supabase.from('app_settings').select('system_name, logo_path').eq('owner_id', ownerId).maybeSingle()
   return data as { system_name: string; logo_path: string | null } | null
 }
 

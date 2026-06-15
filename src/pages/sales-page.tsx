@@ -1,35 +1,59 @@
 import { CircleDollarSign, Search, UserRound, UserRoundPlus } from 'lucide-react'
-import { FormEvent, useEffect, useMemo, useState } from 'react'
+import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 
+import { FilePicker } from '../components/file-picker'
 import { MaskedInput } from '../components/masked-input'
-import { useAuth } from '../contexts/auth-context'
+import { useAuth } from '../hooks/use-auth'
 import { useAsyncData } from '../hooks/use-async-data'
 import { localIsoDate } from '../lib/dates'
 import { getOperationErrorMessage } from '../lib/errors'
 import { formatCurrency, nullableText, toNumber } from '../lib/formatters'
 import { calculateLoan, type LoanCalculationResult, type LoanTermDays, type PaymentFrequency } from '../lib/loan-calculator'
 import { maskDocument, maskPhone } from '../lib/masks'
-import { createSale, getSelectOptions, searchClients } from '../services/finance-service'
+import { createSale, getActiveLoanSettings, getSelectOptions, searchClients } from '../services/finance-service'
+import { getAppSettings } from '../services/settings-service'
 import { uploadClientDocument } from '../services/storage-service'
 import type { ClientRecord } from '../types/finance'
+
+const fallbackModalities = [20, 24, 30]
 
 export function SalesPage() {
   const { profile } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
   const simulation = (location.state as { simulation?: LoanCalculationResult } | null)?.simulation
-  const simulationMeta = (location.state as { simulationMeta?: { routeId?: string; collectorId?: string; cashboxId?: string } } | null)?.simulationMeta
+  const simulationMeta = (location.state as { simulationMeta?: { routeId?: string; collectorId?: string; cashboxId?: string; startDate?: string } } | null)?.simulationMeta
   const options = useAsyncData(getSelectOptions, { routes: [], collectors: [], cashboxes: [] })
+  const loanSettingsLoader = useCallback(() => getActiveLoanSettings(profile?.id), [profile?.id])
+  const appSettingsLoader = useCallback(() => profile ? getAppSettings(profile.id) : Promise.resolve(null), [profile?.id])
+  const loanSettings = useAsyncData(loanSettingsLoader, null)
+  const appSettings = useAsyncData(appSettingsLoader, null)
   const [mode, setMode] = useState<'existing' | 'new'>('existing')
   const [clients, setClients] = useState<ClientRecord[]>([])
   const [clientSearch, setClientSearch] = useState('')
   const [selectedClientId, setSelectedClientId] = useState('')
-  const [preview, setPreview] = useState<LoanCalculationResult | null>(() => simulation ?? createDefaultPreview())
+  const [routeId, setRouteId] = useState(simulationMeta?.routeId ?? '')
+  const [collectorId, setCollectorId] = useState(simulationMeta?.collectorId ?? '')
+  const [cashboxId, setCashboxId] = useState(simulationMeta?.cashboxId ?? '')
+  const [preview, setPreview] = useState<LoanCalculationResult | null>(() => simulation ?? null)
   const [message, setMessage] = useState('')
   const [saving, setSaving] = useState(false)
   const [searchingClients, setSearchingClients] = useState(true)
   const selectedClient = useMemo(() => clients.find((client) => client.id === selectedClientId), [clients, selectedClientId])
+  const modalities = appSettings.data?.modalities?.length ? appSettings.data.modalities : fallbackModalities
+  const defaultTermDays = modalities[0] ?? 20
+  const defaultInterestRate = loanSettings.data?.interest_rate ?? 20
+  const defaultFrequency = loanSettings.data?.default_frequency ?? 'daily'
+
+  useEffect(() => {
+    if (simulation) return
+    setPreview(createDefaultPreview({
+      interestRatePercent: defaultInterestRate,
+      termDays: defaultTermDays as LoanTermDays,
+      paymentFrequency: defaultFrequency as PaymentFrequency,
+    }))
+  }, [defaultFrequency, defaultInterestRate, defaultTermDays, simulation])
 
   useEffect(() => {
     let active = true
@@ -168,18 +192,21 @@ export function SalesPage() {
             </div>
           ) : (
             <div className="sale-client-fields">
+              <div className="form-subsection full-span"><strong>Identificacao</strong><span>Dados principais do cliente.</span></div>
               <label>Nome<input name="name" required /></label>
               <label>CPF/CNPJ<MaskedInput mask={maskDocument} name="documentNumber" /></label>
               <label>RG<input name="rg" /></label>
               <label>Telefone<MaskedInput mask={maskPhone} name="phone" required /></label>
               <label>WhatsApp<MaskedInput mask={maskPhone} name="whatsapp" /></label>
+              <div className="form-subsection full-span"><strong>Endereco</strong><span>Informacoes usadas para rota e cobranca.</span></div>
               <label>Endereco<input name="address" /></label>
               <label>Bairro<input name="neighborhood" /></label>
               <label>Cidade<input name="city" /></label>
               <label>Referencia<input name="referencePoint" /></label>
               <label className="full-span">Observacoes<textarea name="notes" /></label>
-              <label>Foto<input accept="image/*" name="photo" type="file" /></label>
-              <label>Documentos<input multiple name="documents" type="file" /></label>
+              <div className="form-subsection full-span"><strong>Anexos</strong><span>Foto e documentos ficam vinculados ao cadastro.</span></div>
+              <FilePicker name="photo" accept="image/*" label="Foto do cliente" hint="Imagem de identificacao do cadastro" />
+              <FilePicker multiple name="documents" label="Documentos" hint="Selecione um ou mais arquivos" />
             </div>
           )}
         </section>
@@ -188,14 +215,14 @@ export function SalesPage() {
           <SectionHeading icon={CircleDollarSign} title="Dados da venda" description="Defina valores, prazo e destino financeiro." finance />
           <div className="sale-loan-fields">
             <label>Valor emprestado<input defaultValue={simulation?.borrowedAmount ?? 200} name="borrowedAmount" required step="0.01" type="number" /></label>
-            <label>Taxa<input defaultValue={simulation?.interestRatePercent ?? 20} name="interestRatePercent" required step="0.01" type="number" /></label>
-            <label>Modalidade<select defaultValue={simulation?.termDays ?? 20} name="termDays"><option value="20">20 dias</option><option value="24">24 dias</option><option value="30">30 dias</option></select></label>
-            <label>Forma de pagamento<select defaultValue={simulation?.paymentFrequency ?? 'daily'} name="paymentFrequency"><option value="daily">Diaria</option><option value="weekly">Semanal</option><option value="biweekly">Quinzenal</option><option value="monthly">Mensal</option></select></label>
-            <label>Data inicial<input defaultValue={localIsoDate()} name="startDate" required type="date" /></label>
+            <label>Taxa (%)<input key={`interest-${simulation?.interestRatePercent ?? defaultInterestRate}`} defaultValue={simulation?.interestRatePercent ?? defaultInterestRate} name="interestRatePercent" required step="0.01" type="number" /></label>
+            <label>Modalidade<select key={`term-${simulation?.termDays ?? defaultTermDays}-${modalities.join(',')}`} defaultValue={simulation?.termDays ?? defaultTermDays} name="termDays">{modalities.map((days) => <option key={days} value={days}>{days} dias</option>)}</select></label>
+            <label>Forma de pagamento<select key={`frequency-${simulation?.paymentFrequency ?? defaultFrequency}`} defaultValue={simulation?.paymentFrequency ?? defaultFrequency} name="paymentFrequency"><option value="daily">Diaria</option><option value="weekly">Semanal</option><option value="biweekly">Quinzenal</option><option value="monthly">Mensal</option></select></label>
+            <label>Data inicial<input defaultValue={simulationMeta?.startDate ?? localIsoDate()} name="startDate" required type="date" /></label>
             <label>Data final<input readOnly value={preview?.installments.at(-1)?.dueDate ?? ''} /></label>
-            <label>Rota<select defaultValue={simulationMeta?.routeId ?? ''} name="routeId"><option value="">Sem rota</option>{options.data.routes.map((route) => <option key={route.id} value={route.id}>{route.name}</option>)}</select></label>
-            <label>Afiliado responsavel<select defaultValue={simulationMeta?.collectorId ?? ''} name="collectorId"><option value="">Sem afiliado</option>{options.data.collectors.map((affiliate) => <option key={affiliate.id} value={affiliate.id}>{affiliate.full_name}</option>)}</select></label>
-            <label>Caixa origem<select defaultValue={simulationMeta?.cashboxId ?? ''} name="cashboxId"><option value="">Sem caixa</option>{options.data.cashboxes.map((cashbox) => <option key={cashbox.id} value={cashbox.id}>{cashbox.name} - {formatCurrency(cashbox.current_balance)}</option>)}</select></label>
+            <label>Rota<select name="routeId" onChange={(event) => setRouteId(event.target.value)} required value={routeId}><option value="">Selecione a rota</option>{options.data.routes.map((route) => <option key={route.id} value={route.id}>{route.name}</option>)}</select></label>
+            <label>Afiliado responsavel<select name="collectorId" onChange={(event) => setCollectorId(event.target.value)} required value={collectorId}><option value="">Selecione o afiliado</option>{options.data.collectors.map((affiliate) => <option key={affiliate.id} value={affiliate.id}>{affiliate.full_name}</option>)}</select></label>
+            <label>Caixa origem<select name="cashboxId" onChange={(event) => setCashboxId(event.target.value)} value={cashboxId}><option value="">Sem caixa</option>{options.data.cashboxes.map((cashbox) => <option key={cashbox.id} value={cashbox.id}>{cashbox.name} - {formatCurrency(cashbox.current_balance)}</option>)}</select></label>
           </div>
           <div className="result-grid">
             <Result label="Total a receber" value={formatCurrency(preview?.totalReceivable)} />
@@ -214,12 +241,12 @@ function SectionHeading({ icon: Icon, title, description, finance = false }: { i
   return <div className="sale-section-heading"><span className={`sale-section-icon ${finance ? 'sale-finance-icon' : ''}`}><Icon size={18} /></span><div><h2>{title}</h2><p>{description}</p></div></div>
 }
 
-function createDefaultPreview() {
+function createDefaultPreview(defaults: { interestRatePercent: number; termDays: LoanTermDays; paymentFrequency: PaymentFrequency }) {
   return calculateLoan({
     borrowedAmount: 200,
-    interestRatePercent: 20,
-    termDays: 20,
-    paymentFrequency: 'daily',
+    interestRatePercent: defaults.interestRatePercent,
+    termDays: defaults.termDays,
+    paymentFrequency: defaults.paymentFrequency,
     startDate: localIsoDate(),
   })
 }

@@ -1,20 +1,23 @@
 import { Pencil, Plus, Save, Trash2, UserCheck, UserX, X } from 'lucide-react'
 import { FormEvent, useState } from 'react'
 
+import { ConfirmDialog } from '../components/confirm-dialog'
 import { MaskedInput } from '../components/masked-input'
-import { useAuth } from '../contexts/auth-context'
+import { StatusBadge } from '../components/status-badge'
+import { useAuth } from '../hooks/use-auth'
 import { useAsyncData } from '../hooks/use-async-data'
 import { getOperationErrorMessage } from '../lib/errors'
-import { formatCurrency, nullableText, toNumber } from '../lib/formatters'
+import { formatCurrency } from '../lib/formatters'
 import { maskDocument, maskPhone } from '../lib/masks'
 import { supabase } from '../lib/supabase'
+import { buildCreateTeamUserBody, buildTeamUserProfilePayload, buildUpdateTeamUserBody } from '../lib/team-user-payload'
 import { insertAuditLog, listRoutes } from '../services/finance-service'
 import type { Profile, UserRole } from '../types/auth'
 
 const roles: UserRole[] = ['admin', 'gerente', 'afiliado', 'cobrador', 'atendente']
 
 export function TeamPage() {
-  const { profile } = useAuth()
+  const { profile, refreshProfile } = useAuth()
   const routes = useAsyncData(listRoutes, [])
   const members = useAsyncData(listMembers, [])
   const metrics = useAsyncData(listMemberMetrics, {})
@@ -22,37 +25,25 @@ export function TeamPage() {
   const [creating, setCreating] = useState(false)
   const [message, setMessage] = useState('')
   const [savingId, setSavingId] = useState<string | null>(null)
+  const [memberToDelete, setMemberToDelete] = useState<Profile | null>(null)
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!profile || !editing) return
     const form = event.currentTarget
     const formData = new FormData(form)
-    const payload = {
-      full_name: String(formData.get('fullName') ?? ''),
-      email: String(formData.get('email') ?? '').trim(),
-      phone: nullableText(formData.get('phone')),
-      cpf: nullableText(formData.get('cpf')),
-      role: String(formData.get('role')) as UserRole,
-      route_id: nullableText(formData.get('routeId')),
-      commission_rate: toNumber(formData.get('commissionRate')),
-      is_active: formData.get('status') === 'active',
-    }
+    const payload = buildTeamUserProfilePayload(formData)
+    const editedMemberId = editing.id
     setSavingId(editing.id)
     try {
-      const { error } = await supabase.functions.invoke('update-team-user', { body: {
-        userId: editing.id,
-        fullName: payload.full_name,
-        email: payload.email,
-        phone: payload.phone,
-        cpf: payload.cpf,
-        role: payload.role,
-        routeId: payload.route_id,
-        commissionRate: payload.commission_rate,
-        isActive: payload.is_active,
-      } })
+      const { error } = await supabase.functions.invoke('update-team-user', { body: buildUpdateTeamUserBody(editedMemberId, payload) })
       if (error) throw error
-      await insertAuditLog(profile, 'profiles', editing.id, 'update', editing, payload)
+      await insertAuditLog(profile, 'profiles', editedMemberId, 'update', editing, payload)
+      if (editedMemberId === profile.id) {
+        await refreshProfile()
+        const { error: sessionRefreshError } = await supabase.auth.refreshSession()
+        if (sessionRefreshError) console.error('Erro ao atualizar sessao apos editar perfil:', sessionRefreshError)
+      }
       setMessage('Perfil atualizado.')
       setEditing(null)
       members.reload()
@@ -70,16 +61,7 @@ export function TeamPage() {
     const form = event.currentTarget
     const formData = new FormData(form)
     try {
-      const { error } = await supabase.functions.invoke('create-team-user', { body: {
-        fullName: String(formData.get('fullName') ?? ''),
-        email: String(formData.get('email') ?? ''),
-        password: String(formData.get('password') ?? ''),
-        phone: nullableText(formData.get('phone')),
-        cpf: nullableText(formData.get('cpf')),
-        role: String(formData.get('role')),
-        routeId: nullableText(formData.get('routeId')),
-        commissionRate: toNumber(formData.get('commissionRate')),
-      } })
+      const { error } = await supabase.functions.invoke('create-team-user', { body: buildCreateTeamUserBody(formData) })
       if (error) throw error
       setMessage('Usuario criado.')
       setCreating(false)
@@ -110,19 +92,19 @@ export function TeamPage() {
     }
   }
 
-  async function deleteMember(member: Profile) {
-    if (!profile || member.id === profile.id) {
+  async function deleteMember() {
+    if (!profile || !memberToDelete || memberToDelete.id === profile.id) {
       setMessage('Voce nao pode excluir o usuario conectado.')
       return
     }
-    if (!window.confirm(`Excluir definitivamente o usuario "${member.full_name}"? Esta acao nao pode ser desfeita.`)) return
-    setSavingId(member.id)
+    setSavingId(memberToDelete.id)
     try {
-      const { error } = await supabase.functions.invoke('delete-team-user', { body: { userId: member.id } })
+      const { error } = await supabase.functions.invoke('delete-team-user', { body: { userId: memberToDelete.id } })
       if (error) throw error
-      await insertAuditLog(profile, 'profiles', member.id, 'delete', member, null)
-      if (editing?.id === member.id) setEditing(null)
+      await insertAuditLog(profile, 'profiles', memberToDelete.id, 'delete', memberToDelete, null)
+      if (editing?.id === memberToDelete.id) setEditing(null)
       setMessage('Usuario excluido definitivamente.')
+      setMemberToDelete(null)
       members.reload()
       routes.reload()
       metrics.reload()
@@ -194,26 +176,46 @@ export function TeamPage() {
 
       <div className="mobile-card-list">
         {members.data.map((member) => (
-          <article className="mobile-data-card" key={member.id}>
+          <article className="mobile-data-card team-member-card" key={member.id}>
             <div><strong>{member.full_name}</strong><small>{member.email}</small></div>
-            <div className="mini-totals"><b>{member.role}</b><b>{member.commission_rate ?? 0}% comissao</b><b>{member.is_active ? 'Ativo' : 'Inativo'}</b></div>
+            <div className="mini-totals"><b>{formatRole(member.role)}</b><b>{member.commission_rate ?? 0}% comissao</b><b><StatusBadge value={member.is_active ? 'active' : 'inactive'} /></b></div>
             <div className="mini-totals"><b>Recebido: {formatCurrency(metrics.data[member.id]?.received ?? 0)}</b><b>Atrasado: {formatCurrency(metrics.data[member.id]?.overdue ?? 0)}</b><b>Clientes: {metrics.data[member.id]?.clients ?? 0}</b></div>
             <div className="button-row">
               <button className="secondary-button" onClick={() => startEditing(member)} type="button"><Pencil size={15} />Editar</button>
               <button className="secondary-button" disabled={savingId === member.id} onClick={() => toggleMember(member)} type="button">{member.is_active ? <UserX size={15} /> : <UserCheck size={15} />}{member.is_active ? 'Desativar' : 'Ativar'}</button>
-              {member.id !== profile?.id ? <button className="destructive-button" disabled={savingId === member.id} onClick={() => deleteMember(member)} type="button"><Trash2 size={15} />Excluir</button> : null}
+              {member.id !== profile?.id ? <button className="destructive-button" disabled={savingId === member.id} onClick={() => setMemberToDelete(member)} type="button"><Trash2 size={15} />Excluir</button> : null}
             </div>
           </article>
         ))}
       </div>
       <section className="content-panel desktop-table-wrap">
-        <table>
+        <table className="team-members-table">
           <thead><tr><th>Nome</th><th>Papel</th><th>Recebido</th><th>Atrasado</th><th>Clientes</th><th>Vendas</th><th>Comissao</th><th>Status</th><th>Acoes</th></tr></thead>
-          <tbody>{members.data.map((member) => <tr key={member.id}><td>{member.full_name}<small>{member.email}</small></td><td>{member.role}</td><td>{formatCurrency(metrics.data[member.id]?.received ?? 0)}</td><td>{formatCurrency(metrics.data[member.id]?.overdue ?? 0)}</td><td>{metrics.data[member.id]?.clients ?? 0}</td><td>{metrics.data[member.id]?.sales ?? 0}</td><td>{formatCurrency((metrics.data[member.id]?.received ?? 0) * ((member.commission_rate ?? 0) / 100))}</td><td>{member.is_active ? 'Ativo' : 'Inativo'}</td><td><div className="button-row compact-actions"><button className="secondary-button" onClick={() => startEditing(member)} type="button"><Pencil size={15} />Editar</button><button className="secondary-button" disabled={savingId === member.id} onClick={() => toggleMember(member)} type="button">{member.is_active ? <UserX size={15} /> : <UserCheck size={15} />}{member.is_active ? 'Desativar' : 'Ativar'}</button>{member.id !== profile?.id ? <button className="destructive-button" disabled={savingId === member.id} onClick={() => deleteMember(member)} type="button"><Trash2 size={15} />Excluir</button> : null}</div></td></tr>)}</tbody>
+          <tbody>{members.data.map((member) => <tr key={member.id}><td>{member.full_name}<small>{member.email}</small></td><td>{formatRole(member.role)}</td><td>{formatCurrency(metrics.data[member.id]?.received ?? 0)}</td><td>{formatCurrency(metrics.data[member.id]?.overdue ?? 0)}</td><td>{metrics.data[member.id]?.clients ?? 0}</td><td>{metrics.data[member.id]?.sales ?? 0}</td><td>{formatCurrency((metrics.data[member.id]?.received ?? 0) * ((member.commission_rate ?? 0) / 100))}</td><td><StatusBadge value={member.is_active ? 'active' : 'inactive'} /></td><td><div className="button-row compact-actions"><button className="secondary-button" onClick={() => startEditing(member)} type="button"><Pencil size={15} />Editar</button><button className="secondary-button" disabled={savingId === member.id} onClick={() => toggleMember(member)} type="button">{member.is_active ? <UserX size={15} /> : <UserCheck size={15} />}{member.is_active ? 'Desativar' : 'Ativar'}</button>{member.id !== profile?.id ? <button className="destructive-button" disabled={savingId === member.id} onClick={() => setMemberToDelete(member)} type="button"><Trash2 size={15} />Excluir</button> : null}</div></td></tr>)}</tbody>
         </table>
       </section>
+      <ConfirmDialog
+        open={Boolean(memberToDelete)}
+        title="Confirmar exclusao"
+        description={`Excluir definitivamente o usuario "${memberToDelete?.full_name ?? ''}"? Esta acao nao pode ser desfeita.`}
+        confirmLabel="Excluir usuario"
+        loading={savingId === memberToDelete?.id}
+        onClose={() => setMemberToDelete(null)}
+        onConfirm={deleteMember}
+      />
     </section>
   )
+}
+
+function formatRole(role: UserRole): string {
+  const labels: Record<UserRole, string> = {
+    admin: 'Admin',
+    gerente: 'Gerente',
+    afiliado: 'Afiliado',
+    cobrador: 'Cobrador',
+    atendente: 'Atendente',
+  }
+  return labels[role] ?? role
 }
 
 async function listMembers(): Promise<Profile[]> {

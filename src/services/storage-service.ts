@@ -12,7 +12,7 @@ export async function uploadClientDocument(profile: Profile, input: {
 }): Promise<string> {
   const { data: client, error: clientError } = await supabase.from('clients').select('owner_id').eq('id', input.clientId).single()
   if (clientError) throw clientError
-  const path = `${profile.id}/${input.clientId}/${Date.now()}-${sanitizeFileName(input.file.name)}`
+  const path = `${client.owner_id}/${input.clientId}/${Date.now()}-${sanitizeFileName(input.file.name)}`
   const { error: uploadError } = await supabase.storage.from(CLIENT_DOCUMENTS_BUCKET).upload(path, input.file, { upsert: false })
   if (uploadError) throw uploadError
 
@@ -35,7 +35,8 @@ export async function uploadReceipt(profile: Profile, input: {
   folder: 'payments' | 'expenses'
   recordId: string
 }): Promise<string> {
-  const path = `${profile.id}/${input.folder}/${input.recordId}/${Date.now()}-${sanitizeFileName(input.file.name)}`
+  const ownerId = await resolveReceiptOwnerId(profile, input.folder, input.recordId)
+  const path = `${ownerId}/${input.folder}/${input.recordId}/${Date.now()}-${sanitizeFileName(input.file.name)}`
   const { error } = await supabase.storage.from(RECEIPTS_BUCKET).upload(path, input.file, { upsert: false })
   if (error) throw error
   return path
@@ -61,4 +62,11 @@ function sanitizeFileName(fileName: string): string {
     .replace(/[^a-zA-Z0-9._-]+/g, '-')
     .replace(/^-+|-+$/g, '')
     .slice(0, 120) || 'arquivo'
+}
+
+async function resolveReceiptOwnerId(profile: Profile, folder: 'payments' | 'expenses', recordId: string): Promise<string> {
+  const table = folder === 'payments' ? 'payments' : 'expenses'
+  const { data, error } = await supabase.from(table).select('owner_id').eq('id', recordId).single()
+  if (error) throw error
+  return String(data?.owner_id ?? profile.id)
 }

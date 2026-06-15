@@ -8,8 +8,10 @@ export type RouteRecord = {
   description: string | null
   collector_id: string | null
   collection_days?: number[]
+  main_collection_day?: number | null
   city?: string | null
   neighborhood?: string | null
+  observations?: string | null
   goal_amount?: number
   is_active: boolean
 }

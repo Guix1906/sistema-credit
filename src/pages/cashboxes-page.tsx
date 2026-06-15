@@ -1,6 +1,7 @@
 import { FormEvent, useState } from 'react'
 
-import { useAuth } from '../contexts/auth-context'
+import { ConfirmDialog } from '../components/confirm-dialog'
+import { useAuth } from '../hooks/use-auth'
 import { useAsyncData } from '../hooks/use-async-data'
 import { formatCurrency, toNumber } from '../lib/formatters'
 import { supabase } from '../lib/supabase'
@@ -11,6 +12,8 @@ export function CashboxesPage() {
   const cashboxes = useAsyncData(listCashboxes, [])
   const routes = useAsyncData(listRoutes, [])
   const [message, setMessage] = useState('')
+  const [cashboxToClose, setCashboxToClose] = useState<{ id: string; name: string } | null>(null)
+  const [closingId, setClosingId] = useState<string | null>(null)
   const totalBalance = cashboxes.data.reduce((sum, cashbox) => sum + cashbox.current_balance, 0)
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -45,14 +48,20 @@ export function CashboxesPage() {
     }
   }
 
-  async function closeCashbox(id: string) {
-    if (!profile) return
-    const { error } = await supabase.from('cashboxes').update({ status: 'closed', closed_at: new Date().toISOString() }).eq('id', id)
-    if (error) setMessage(error.message)
-    else {
-      await insertAuditLog(profile, 'cashboxes', id, 'update', null, { status: 'closed' })
-      setMessage('Caixa fechado.')
-      cashboxes.reload()
+  async function closeCashbox() {
+    if (!profile || !cashboxToClose) return
+    setClosingId(cashboxToClose.id)
+    try {
+      const { error } = await supabase.from('cashboxes').update({ status: 'closed', closed_at: new Date().toISOString() }).eq('id', cashboxToClose.id)
+      if (error) setMessage(error.message)
+      else {
+        await insertAuditLog(profile, 'cashboxes', cashboxToClose.id, 'update', null, { status: 'closed' })
+        setMessage('Caixa fechado.')
+        setCashboxToClose(null)
+        cashboxes.reload()
+      }
+    } finally {
+      setClosingId(null)
     }
   }
 
@@ -74,14 +83,24 @@ export function CashboxesPage() {
         <article className="metric-card"><span>Caixas por rota</span><strong>{cashboxes.data.filter((cashbox) => cashbox.kind === 'route').length}</strong></article>
       </div>
       <div className="mobile-card-list">
-        {cashboxes.data.map((cashbox) => <article className="mobile-data-card" key={cashbox.id}><strong>{cashbox.name}</strong><span>{cashbox.kind ?? 'Caixa'} - {formatCurrency(cashbox.current_balance)}</span><small>{cashbox.allow_negative ? 'Permite saldo negativo' : 'Bloqueia saldo negativo'}</small><button className="secondary-button" onClick={() => closeCashbox(cashbox.id)} type="button">Fechar</button></article>)}
+        {cashboxes.data.map((cashbox) => <article className="mobile-data-card" key={cashbox.id}><strong>{cashbox.name}</strong><span>{cashbox.kind ?? 'Caixa'} - {formatCurrency(cashbox.current_balance)}</span><small>{cashbox.allow_negative ? 'Permite saldo negativo' : 'Bloqueia saldo negativo'}</small><button className="secondary-button" onClick={() => setCashboxToClose({ id: cashbox.id, name: cashbox.name })} type="button">Fechar</button></article>)}
       </div>
       <section className="content-panel desktop-table-wrap">
         <table>
           <thead><tr><th>Nome</th><th>Tipo</th><th>Saldo</th><th>Status</th><th>Negativo</th><th>Acao</th></tr></thead>
-          <tbody>{cashboxes.data.map((cashbox) => <tr key={cashbox.id}><td>{cashbox.name}</td><td>{cashbox.kind ?? '-'}</td><td>{formatCurrency(cashbox.current_balance)}</td><td>{cashbox.status}</td><td>{cashbox.allow_negative ? 'Sim' : 'Nao'}</td><td><button className="secondary-button" onClick={() => closeCashbox(cashbox.id)} type="button">Fechar</button></td></tr>)}</tbody>
+          <tbody>{cashboxes.data.map((cashbox) => <tr key={cashbox.id}><td>{cashbox.name}</td><td>{cashbox.kind ?? '-'}</td><td>{formatCurrency(cashbox.current_balance)}</td><td>{cashbox.status}</td><td>{cashbox.allow_negative ? 'Sim' : 'Nao'}</td><td><button className="secondary-button" onClick={() => setCashboxToClose({ id: cashbox.id, name: cashbox.name })} type="button">Fechar</button></td></tr>)}</tbody>
         </table>
       </section>
+      <ConfirmDialog
+        open={Boolean(cashboxToClose)}
+        title="Confirmar fechamento"
+        description={`Fechar o caixa "${cashboxToClose?.name ?? ''}"? Confira o saldo antes de continuar.`}
+        confirmLabel="Fechar caixa"
+        loading={closingId === cashboxToClose?.id}
+        tone="warning"
+        onClose={() => setCashboxToClose(null)}
+        onConfirm={closeCashbox}
+      />
     </section>
   )
 }

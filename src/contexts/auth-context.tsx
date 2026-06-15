@@ -1,6 +1,7 @@
 import type { Session, User } from '@supabase/supabase-js'
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
+import { AuthContext, type AuthContextValue } from './auth-context-definition'
 import { evaluateAccessWindow } from '../lib/access-window'
 import { supabase } from '../lib/supabase'
 import { getAccessSettings } from '../services/access-settings-service'
@@ -9,28 +10,14 @@ import { insertAuditLog } from '../services/finance-service'
 import { ensureCurrentProfile, getCurrentProfile } from '../services/profile-service'
 import type { AccessBlockDetails } from '../types/access-settings'
 import type { Profile } from '../types/auth'
-
-type AuthContextValue = {
-  session: Session | null
-  user: User | null
-  profile: Profile | null
-  accessBlock: AccessBlockDetails | null
-  loading: boolean
-  signIn: (email: string, password: string) => Promise<void>
-  signUp: (input: { fullName: string; email: string; password: string }) => Promise<void>
-  resetPassword: (email: string) => Promise<void>
-  signOut: () => Promise<void>
-  refreshProfile: () => Promise<void>
-  clearAccessBlock: () => void
-}
-
-const AuthContext = createContext<AuthContextValue | undefined>(undefined)
+const AUDITED_LOGIN_USER_KEY = 'sistema-credito:audited-login-user'
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [accessBlock, setAccessBlock] = useState<AccessBlockDetails | null>(null)
   const [loading, setLoading] = useState(true)
+  const auditedLoginUserId = useRef<string | null>(window.sessionStorage.getItem(AUDITED_LOGIN_USER_KEY))
 
   const enforceAccessWindow = useCallback(async (currentProfile: Profile) => {
     const settings = await getAccessSettings(currentProfile.id)
@@ -62,6 +49,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await registerAccessBlocked(currentProfile, blockDetails)
     } finally {
       await supabase.auth.signOut()
+      auditedLoginUserId.current = null
+      window.sessionStorage.removeItem(AUDITED_LOGIN_USER_KEY)
       setSession(null)
       setProfile(null)
     }
@@ -72,16 +61,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const loadProfile = useCallback(async (user: User | undefined) => {
     if (!user) {
       setProfile(null)
-      return
+      return null
     }
 
     const currentProfile = await ensureCurrentProfileFromUser(user)
     if (currentProfile) {
       await enforceAccessWindow(currentProfile)
-      insertAuditLog(currentProfile, 'auth', currentProfile.id, 'login', null, { email: user.email }).catch(console.error)
     }
 
     setProfile(currentProfile)
+    return currentProfile
   }, [enforceAccessWindow])
 
   const refreshProfile = useCallback(async () => {
@@ -92,44 +81,62 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     let isMounted = true
 
     async function loadSession() {
-      const confirmationCode = new URLSearchParams(window.location.search).get('code')
+      try {
+        const confirmationCode = new URLSearchParams(window.location.search).get('code')
 
-      if (confirmationCode) {
-        const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(confirmationCode)
+        if (confirmationCode) {
+          const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(confirmationCode)
 
-        if (exchangeError) {
-          throw exchangeError
+          if (exchangeError) {
+            throw exchangeError
+          }
+
+          window.history.replaceState({}, document.title, window.location.pathname)
         }
 
-        window.history.replaceState({}, document.title, window.location.pathname)
-      }
+        const { data, error } = await supabase.auth.getSession()
 
-      const { data, error } = await supabase.auth.getSession()
+        if (error) {
+          throw error
+        }
 
-      if (error) {
-        throw error
-      }
+        if (!isMounted) {
+          return
+        }
 
-      if (!isMounted) {
-        return
-      }
-
-      setSession(data.session)
-      try {
+        setSession(data.session)
         await loadProfile(data.session?.user)
       } catch (error) {
-        console.error('Erro ao carregar perfil:', error)
+        console.error('Erro ao iniciar sessao:', error)
+        if (isMounted) {
+          setSession(null)
+          setProfile(null)
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false)
+        }
       }
-      setLoading(false)
     }
 
     loadSession()
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+    } = supabase.auth.onAuthStateChange((event, nextSession) => {
       setSession(nextSession)
       loadProfile(nextSession?.user)
+        .then((currentProfile) => {
+          if (event === 'SIGNED_OUT') {
+            return
+          }
+
+          if (event === 'SIGNED_IN' && currentProfile && nextSession && auditedLoginUserId.current !== nextSession.user.id) {
+            auditedLoginUserId.current = nextSession.user.id
+            window.sessionStorage.setItem(AUDITED_LOGIN_USER_KEY, nextSession.user.id)
+            insertAuditLog(currentProfile, 'auth', currentProfile.id, 'login', null, { email: nextSession.user.email }).catch(console.error)
+          }
+        })
         .catch((error) => console.error('Erro ao carregar perfil:', error))
         .finally(() => setLoading(false))
     })
@@ -166,6 +173,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         emailRedirectTo,
         data: {
           full_name: input.fullName,
+          name: input.fullName,
         },
       },
     })
@@ -196,6 +204,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       insertAuditLog(currentProfile, 'auth', currentProfile.id, 'logout', null, { email: currentProfile.email }).catch(console.error)
     }
 
+    auditedLoginUserId.current = null
+    window.sessionStorage.removeItem(AUDITED_LOGIN_USER_KEY)
     setProfile(null)
   }, [profile])
 
@@ -224,19 +234,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 }
 
 function ensureCurrentProfileFromUser(user: User, fallbackEmail = '') {
+  const metadataName = typeof user.user_metadata.full_name === 'string'
+    ? user.user_metadata.full_name
+    : typeof user.user_metadata.name === 'string'
+      ? user.user_metadata.name
+      : undefined
+
   return ensureCurrentProfile({
     id: user.id,
     email: user.email ?? fallbackEmail,
-    fullName: typeof user.user_metadata.full_name === 'string' ? user.user_metadata.full_name : undefined,
+    fullName: metadataName,
   })
-}
-
-export function useAuth() {
-  const context = useContext(AuthContext)
-
-  if (!context) {
-    throw new Error('useAuth deve ser usado dentro de AuthProvider.')
-  }
-
-  return context
 }

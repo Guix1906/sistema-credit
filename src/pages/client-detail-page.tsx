@@ -2,8 +2,9 @@ import { MessageCircle, Plus, Trash2 } from 'lucide-react'
 import { FormEvent, useCallback, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 
+import { ConfirmDialog } from '../components/confirm-dialog'
 import { MaskedInput } from '../components/masked-input'
-import { useAuth } from '../contexts/auth-context'
+import { useAuth } from '../hooks/use-auth'
 import { useAsyncData } from '../hooks/use-async-data'
 import { localIsoDate } from '../lib/dates'
 import { formatCurrency, formatDate } from '../lib/formatters'
@@ -12,6 +13,7 @@ import { maskDocument, maskPhone } from '../lib/masks'
 import { supabase } from '../lib/supabase'
 import { getActiveLoanSettings, getSelectOptions, insertAuditLog } from '../services/finance-service'
 import { createClientDocumentSignedUrl } from '../services/storage-service'
+import type { BillingHistoryRecord, ReceivableRecord } from '../services/finance-service'
 import type { ClientRecord, InstallmentRecord, LoanRecord } from '../types/finance'
 
 type ClientDocument = {
@@ -29,6 +31,8 @@ export function ClientDetailPage() {
   const [searchParams] = useSearchParams()
   const [editing, setEditing] = useState(() => searchParams.get('edit') === '1')
   const [message, setMessage] = useState('')
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const loader = useCallback(async () => {
     if (!id) throw new Error('Cliente nao informado.')
     const clientResponse = await supabase.from('clients').select('*').eq('id', id).single()
@@ -42,14 +46,20 @@ export function ClientDetailPage() {
     if (installmentsResponse.error) throw installmentsResponse.error
     const documentsResponse = await supabase.from('client_documents').select('id, document_type, file_name, file_path, created_at').eq('client_id', id).order('created_at', { ascending: false })
     if (documentsResponse.error) throw documentsResponse.error
+    const receivablesResponse = await supabase.from('receivables').select('*').eq('client_id', id).order('due_date', { ascending: false })
+    const historyResponse = await supabase.from('billing_history').select('*').eq('client_id', id).order('created_at', { ascending: false }).limit(50)
+    if (receivablesResponse.error && !isMissingBillingTable(receivablesResponse.error)) throw receivablesResponse.error
+    if (historyResponse.error && !isMissingBillingTable(historyResponse.error)) throw historyResponse.error
     return {
       client: clientResponse.data as ClientRecord,
       loans,
       installments: (installmentsResponse.data ?? []) as InstallmentRecord[],
       documents: (documentsResponse.data ?? []) as ClientDocument[],
+      receivables: receivablesResponse.error && isMissingBillingTable(receivablesResponse.error) ? [] : (receivablesResponse.data ?? []) as ReceivableRecord[],
+      billingHistory: historyResponse.error && isMissingBillingTable(historyResponse.error) ? [] : (historyResponse.data ?? []) as BillingHistoryRecord[],
     }
   }, [id])
-  const { data, loading, error, reload } = useAsyncData(loader, { client: null as ClientRecord | null, loans: [] as LoanRecord[], installments: [] as InstallmentRecord[], documents: [] as ClientDocument[] })
+  const { data, loading, error, reload } = useAsyncData(loader, { client: null as ClientRecord | null, loans: [] as LoanRecord[], installments: [] as InstallmentRecord[], documents: [] as ClientDocument[], receivables: [] as ReceivableRecord[], billingHistory: [] as BillingHistoryRecord[] })
   const settingsLoader = useCallback(() => getActiveLoanSettings(profile?.id), [profile?.id])
   const settings = useAsyncData(settingsLoader, null)
   const options = useAsyncData(getSelectOptions, { routes: [], collectors: [], cashboxes: [] })
@@ -60,12 +70,24 @@ export function ClientDetailPage() {
   const open = Math.max(total - paid, 0)
   const today = localIsoDate()
   const overdue = data.installments.filter((installment) => installment.status !== 'paid' && installment.due_date < today)
+  const pendingFinancialItems = [
+    ...data.installments.filter((installment) => installment.status !== 'paid' && installment.status !== 'cancelled'),
+    ...data.receivables.filter((receivable) => receivable.status !== 'pago' && receivable.status !== 'cancelado'),
+  ]
+  const paidFinancialItems = [
+    ...data.installments.filter((installment) => installment.status === 'paid'),
+    ...data.receivables.filter((receivable) => receivable.status === 'pago'),
+  ]
+  const overdueFinancialItems = [
+    ...data.installments.filter((installment) => installment.status !== 'paid' && installment.status !== 'cancelled' && installment.due_date < today),
+    ...data.receivables.filter((receivable) => receivable.status !== 'pago' && receivable.status !== 'cancelado' && receivable.due_date < today),
+  ]
 
   async function openDocument(path: string) {
     try {
       window.open(await createClientDocumentSignedUrl(path), '_blank', 'noopener,noreferrer')
     } catch (documentError) {
-      window.alert(documentError instanceof Error ? documentError.message : 'Nao foi possivel abrir o documento.')
+      setMessage(documentError instanceof Error ? documentError.message : 'Nao foi possivel abrir o documento.')
     }
   }
 
@@ -109,10 +131,24 @@ export function ClientDetailPage() {
   }
 
   async function deleteClient() {
-    if (!data.client || !window.confirm(`Excluir o cliente "${data.client.name}"? Esta acao nao pode ser desfeita.`)) return
-    const { error: deleteError } = await supabase.rpc('purge_client_permanently', { p_client_id: data.client.id })
-    if (deleteError) setMessage(deleteError.message)
-    else navigate('/clientes')
+    if (!data.client) return
+    setDeleting(true)
+    try {
+      const { data: result, error: deleteError } = await supabase.rpc('delete_or_archive_client', { p_client_id: data.client.id })
+      if (deleteError) setMessage(deleteError.message)
+      else {
+        const payload = result as { mode?: string } | null
+        setConfirmDeleteOpen(false)
+        if (payload?.mode === 'archived') {
+          setMessage('Cliente arquivado. O historico financeiro foi preservado.')
+          reload()
+        } else {
+          navigate('/clientes')
+        }
+      }
+    } finally {
+      setDeleting(false)
+    }
   }
 
   return (
@@ -127,7 +163,7 @@ export function ClientDetailPage() {
           <Link className="button-link" to="/vendas"><Plus size={17} />Nova venda</Link>
           <button className="secondary-button" onClick={() => setEditing((value) => !value)} type="button">Editar</button>
           <button className="secondary-button" onClick={toggleClient} type="button">{data.client?.is_active ? 'Desativar' : 'Ativar'}</button>
-          <button className="destructive-button" onClick={deleteClient} type="button"><Trash2 size={17} />Excluir</button>
+          <button className="destructive-button" onClick={() => setConfirmDeleteOpen(true)} type="button"><Trash2 size={17} />Excluir</button>
         </div>
       </div>
 
@@ -172,6 +208,15 @@ export function ClientDetailPage() {
           </dl>
         </section>
       )}
+      <ConfirmDialog
+        open={confirmDeleteOpen}
+        title="Confirmar exclusao"
+        description={`Excluir o cliente "${data.client?.name ?? ''}"? Clientes com historico financeiro serao arquivados para preservar os registros.`}
+        confirmLabel="Excluir cliente"
+        loading={deleting}
+        onClose={() => setConfirmDeleteOpen(false)}
+        onConfirm={deleteClient}
+      />
 
       <section className="content-panel desktop-table-wrap">
         <h2>Vendas</h2>
@@ -193,6 +238,26 @@ export function ClientDetailPage() {
       </section>
 
       <section className="content-panel desktop-table-wrap">
+        <div className="billing-section-heading">
+          <div>
+            <h2>Financeiro / Cobrancas</h2>
+            <p>Pagamentos pendentes, pagos, atrasados e historico de contato deste cliente.</p>
+          </div>
+          <Link className="button-link secondary-button" to={`/cobrancas?clientId=${data.client?.id ?? ''}`}>Abrir cobrancas</Link>
+        </div>
+        <div className="summary-grid collection-summary-grid">
+          <Metric label="Pendentes" value={String(pendingFinancialItems.length)} />
+          <Metric label="Pagos" value={String(paidFinancialItems.length)} />
+          <Metric label="Atrasados" value={String(overdueFinancialItems.length)} />
+        </div>
+        <table className="client-billing-table">
+          <thead><tr><th>Data</th><th>Status anterior</th><th>Novo status</th><th>Canal</th><th>Observacao</th></tr></thead>
+          <tbody>{data.billingHistory.map((history) => <tr key={history.id}><td>{formatDate(history.created_at)}</td><td>{history.previous_status ?? '-'}</td><td>{history.new_status}</td><td>{history.channel}</td><td>{history.note ?? '-'}</td></tr>)}</tbody>
+        </table>
+        {!data.billingHistory.length ? <p className="muted-copy">Nenhum historico de cobranca registrado.</p> : null}
+      </section>
+
+      <section className="content-panel desktop-table-wrap">
         <h2>Documentos</h2>
         <table>
           <thead><tr><th>Tipo</th><th>Arquivo</th><th>Criado em</th><th>Acao</th></tr></thead>
@@ -206,4 +271,8 @@ export function ClientDetailPage() {
 
 function Metric({ label, value }: { label: string; value: string }) {
   return <article className="metric-card"><span>{label}</span><strong>{value}</strong></article>
+}
+
+function isMissingBillingTable(error: { code?: string; message?: string }): boolean {
+  return error.code === '42P01' || error.code === 'PGRST205' || Boolean(error.message?.includes('Could not find the table'))
 }

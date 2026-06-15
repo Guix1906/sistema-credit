@@ -1,11 +1,13 @@
 import { FormEvent, useCallback, useState } from 'react'
+import type { ReactNode } from 'react'
 
+import { StatusBadge } from '../components/status-badge'
 import { useAsyncData } from '../hooks/use-async-data'
 import { localIsoDate } from '../lib/dates'
 import { downloadCsv } from '../lib/exporters'
 import { formatCurrency } from '../lib/formatters'
 import { supabase } from '../lib/supabase'
-import { getSelectOptions, searchClients } from '../services/finance-service'
+import { getWalletFilterOptions } from '../services/finance-service'
 
 type ReportType = 'geral' | 'rota' | 'cobrador' | 'cliente' | 'vendas' | 'pagas' | 'atrasadas' | 'inadimplencia' | 'lucro' | 'caixa' | 'gastos' | 'diario' | 'semanal' | 'mensal' | 'anual'
 
@@ -29,11 +31,32 @@ const reportLabels: Record<ReportType, string> = {
 
 type ReportFilters = { startDate: string; endDate: string; term: string; routeId: string; collectorId: string; clientId: string }
 
+const columnLabels: Record<string, string> = {
+  id: 'ID',
+  nome: 'Nome',
+  cliente: 'Cliente',
+  rota: 'Rota',
+  afiliado: 'Afiliado',
+  status: 'Status',
+  amount: 'Valor',
+  principal_amount: 'Valor emprestado',
+  interest_amount: 'Juros',
+  total_amount: 'Total',
+  paid_amount: 'Recebido',
+  remaining_amount: 'Em aberto',
+  due_date: 'Vencimento',
+  issued_at: 'Data da venda',
+  created_at: 'Criado em',
+  occurred_at: 'Data',
+  expense_date: 'Data',
+  installment_number: 'Parcela',
+  quantidade: 'Quantidade',
+}
+
 export function ReportsPage() {
   const [reportType, setReportType] = useState<ReportType>('geral')
   const [filters, setFilters] = useState<ReportFilters>({ startDate: '', endDate: '', term: '', routeId: '', collectorId: '', clientId: '' })
-  const options = useAsyncData(getSelectOptions, { routes: [], collectors: [], cashboxes: [] })
-  const clients = useAsyncData(() => searchClients(''), [])
+  const options = useAsyncData(getWalletFilterOptions, { routes: [], collectors: [], clients: [], statuses: [] })
   const loader = useCallback(() => loadReport(reportType, filters), [reportType, filters])
   const { data, loading, error } = useAsyncData(loader, [] as Record<string, unknown>[])
   const totals = calculateTotals(data)
@@ -75,7 +98,7 @@ export function ReportsPage() {
         <input name="term" placeholder="Nome, rota, status ou texto" defaultValue={filters.term} />
         <select name="routeId" defaultValue={filters.routeId}><option value="">Todas as rotas</option>{options.data.routes.map((route) => <option key={route.id} value={route.id}>{route.name}</option>)}</select>
         <select name="collectorId" defaultValue={filters.collectorId}><option value="">Todos os afiliados</option>{options.data.collectors.map((collector) => <option key={collector.id} value={collector.id}>{collector.full_name}</option>)}</select>
-        <select name="clientId" defaultValue={filters.clientId}><option value="">Todos os clientes</option>{clients.data.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}</select>
+        <select name="clientId" defaultValue={filters.clientId}><option value="">Todos os clientes</option>{options.data.clients.map((client) => <option key={client.id} value={client.id}>{client.name}{client.document_number || client.phone ? ` - ${client.document_number ?? client.phone}` : ''}</option>)}</select>
         <button type="submit">Filtrar</button>
       </form>
 
@@ -92,8 +115,8 @@ export function ReportsPage() {
       {loading ? <div className="skeleton-card" /> : null}
       <section className="content-panel desktop-table-wrap">
         <table>
-          <thead><tr>{columns.map((column) => <th key={column}>{column}</th>)}</tr></thead>
-          <tbody>{data.map((row, index) => <tr key={String(row.id ?? index)}>{columns.map((column) => <td key={column}>{formatValue(row[column])}</td>)}</tr>)}</tbody>
+          <thead><tr>{columns.map((column) => <th key={column}>{formatColumnLabel(column)}</th>)}</tr></thead>
+          <tbody>{data.map((row, index) => <tr key={String(row.id ?? index)}>{columns.map((column) => <td key={column}>{formatValue(row[column], column)}</td>)}</tr>)}</tbody>
         </table>
         {!data.length && !loading ? <p className="muted-copy">Nenhum registro encontrado.</p> : null}
       </section>
@@ -174,7 +197,15 @@ async function enrichInstallmentRows(rows: Record<string, unknown>[]): Promise<R
   const loanById = new Map(enrichedLoans.map((loan) => [String(loan.id), loan]))
   return rows.map((row) => {
     const loan = loanById.get(String(row.loan_id))
-    return { ...row, cliente: loan?.cliente ?? '', rota: loan?.rota ?? '', afiliado: loan?.afiliado ?? '' }
+    return {
+      ...row,
+      client_id: loan?.client_id ?? row.client_id,
+      route_id: loan?.route_id ?? row.route_id,
+      collector_id: loan?.collector_id ?? row.collector_id,
+      cliente: loan?.cliente ?? '',
+      rota: loan?.rota ?? '',
+      afiliado: loan?.afiliado ?? '',
+    }
   })
 }
 
@@ -194,6 +225,7 @@ async function selectTable(table: string, dateColumn: string, filters: ReportFil
   if (filters.startDate) query = query.gte(dateColumn, filters.startDate)
   if (filters.endDate) query = query.lte(dateColumn, filters.endDate)
   if (table === 'expenses' && filters.routeId) query = query.eq('route_id', filters.routeId)
+  if (table === 'expenses' && filters.collectorId) query = query.eq('responsible_id', filters.collectorId)
   const { data, error } = await query
   if (error) throw error
   return filterTerm((data ?? []) as Record<string, unknown>[], filters.term)
@@ -249,9 +281,35 @@ function filterDimensions(rows: Record<string, unknown>[], filters: ReportFilter
     && (!filters.clientId || row.client_id === filters.clientId))
 }
 
-function formatValue(value: unknown): string {
-  if (typeof value === 'number') return Math.abs(value) >= 10 ? formatCurrency(value) : String(value)
-  return String(value ?? '-')
+function formatColumnLabel(column: string) {
+  return columnLabels[column] ?? column.replace(/_/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase())
+}
+
+function formatValue(value: unknown, column: string): ReactNode {
+  if (value === null || value === undefined || value === '') return '-'
+  if (column === 'status') return <StatusBadge value={String(value)} />
+  if (typeof value === 'number') {
+    return isCurrencyColumn(column) ? formatCurrency(value) : value.toLocaleString('pt-BR')
+  }
+  const text = String(value)
+  if (isDateColumn(column)) {
+    const date = new Date(text)
+    if (!Number.isNaN(date.getTime())) return date.toLocaleDateString('pt-BR')
+  }
+  if (isLikelyId(column, text)) return `${text.slice(0, 8)}...${text.slice(-4)}`
+  return text
+}
+
+function isCurrencyColumn(column: string) {
+  return ['amount', 'principal_amount', 'interest_amount', 'total_amount', 'paid_amount', 'remaining_amount', 'current_balance'].some((key) => column.includes(key))
+}
+
+function isDateColumn(column: string) {
+  return column.endsWith('_at') || column.endsWith('_date') || column === 'issued_at'
+}
+
+function isLikelyId(column: string, value: string) {
+  return (column === 'id' || column.endsWith('_id')) && value.length > 18
 }
 
 function Metric({ label, value }: { label: string; value: string }) {

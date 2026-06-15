@@ -1,4 +1,4 @@
-export type UserRole = 'admin' | 'gerente' | 'afiliado' | 'cobrador' | 'atendente' | 'operator' | 'manager' | 'collector'
+export type UserRole = 'admin' | 'gerente' | 'afiliado' | 'cobrador' | 'atendente'
 
 export type Profile = {
   id: string

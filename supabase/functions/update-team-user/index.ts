@@ -21,19 +21,21 @@ Deno.serve(async (request) => {
     if (callerProfile?.role !== 'admin') throw new Error('Somente admin pode atualizar usuarios.')
 
     const body = await request.json()
-    const email = String(body.email ?? '').trim()
+    const fullName = String(body.fullName ?? '').trim()
+    const email = String(body.email ?? '').trim().toLowerCase()
     if (!body.userId) throw new Error('Usuario nao informado.')
+    if (!fullName) throw new Error('Informe o nome do usuario.')
     if (!email) throw new Error('Informe o e-mail usado para entrar no sistema.')
 
     const { error: authError } = await admin.auth.admin.updateUserById(body.userId, {
       email,
       email_confirm: true,
-      user_metadata: { full_name: body.fullName },
+      user_metadata: { full_name: fullName, name: fullName },
     })
     if (authError) throw authError
 
     const { error: profileError } = await admin.from('profiles').update({
-      full_name: body.fullName,
+      full_name: fullName,
       email,
       phone: body.phone || null,
       cpf: body.cpf || null,

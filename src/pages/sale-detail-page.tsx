@@ -20,12 +20,18 @@ type SaleDetail = {
   loan: LoanRecord | null
   installments: InstallmentRecord[]
   payments: PaymentRecord[]
+  clientName: string
+  routeName: string
+  affiliateName: string
 }
 
 const emptySaleDetail: SaleDetail = {
   loan: null,
   installments: [],
   payments: [],
+  clientName: '-',
+  routeName: '-',
+  affiliateName: '-',
 }
 
 export function SaleDetailPage() {
@@ -40,14 +46,28 @@ export function SaleDetailPage() {
     if (loan.error) throw loan.error
     if (installments.error) throw installments.error
     if (payments.error) throw payments.error
+    const currentLoan = loan.data as LoanRecord | null
+    const [client, route, affiliate] = currentLoan ? await Promise.all([
+      supabase.from('clients').select('name').eq('id', currentLoan.client_id).maybeSingle(),
+      currentLoan.route_id ? supabase.from('routes').select('name').eq('id', currentLoan.route_id).maybeSingle() : Promise.resolve({ data: null, error: null }),
+      currentLoan.collector_id ? supabase.from('profiles').select('full_name').eq('id', currentLoan.collector_id).maybeSingle() : Promise.resolve({ data: null, error: null }),
+    ]) : [{ data: null, error: null }, { data: null, error: null }, { data: null, error: null }]
+    if (client.error) throw client.error
+    if (route.error) throw route.error
+    if (affiliate.error) throw affiliate.error
     return {
-      loan: loan.data as LoanRecord | null,
+      loan: currentLoan,
       installments: (installments.data ?? []) as InstallmentRecord[],
       payments: (payments.data ?? []) as PaymentRecord[],
+      clientName: client.data?.name ?? '-',
+      routeName: route.data?.name ?? '-',
+      affiliateName: affiliate.data?.full_name ?? '-',
     }
   }, [id])
   const { data, loading, error } = useAsyncData(loader, emptySaleDetail)
   const loan = data.loan
+  const paid = data.installments.reduce((total, installment) => total + installment.paid_amount, 0)
+  const open = Math.max((loan?.total_amount ?? 0) - paid, 0)
 
   return (
     <section className="page-stack sale-detail-page">
@@ -57,7 +77,11 @@ export function SaleDetailPage() {
           <h1>Detalhe da venda</h1>
           <p>Venda, parcelas e pagamentos vinculados ao registro selecionado.</p>
         </div>
-        <Link className="button-link" to="/vendas">Nova venda</Link>
+        <div className="button-row">
+          <Link className="button-link secondary-button" to="/carteira">Ir para Carteira</Link>
+          <Link className="button-link secondary-button" to={`/cobrancas?routeId=${loan?.route_id ?? ''}&clientId=${loan?.client_id ?? ''}`}>Ver Cobrancas</Link>
+          <Link className="button-link" to="/vendas">Nova Venda</Link>
+        </div>
       </div>
 
       {error ? <p className="form-message">{error}</p> : null}
@@ -65,10 +89,16 @@ export function SaleDetailPage() {
       {!loading && loan ? (
         <>
           <div className="sale-detail-summary">
+            <Metric label="Cliente" value={data.clientName} />
+            <Metric label="Afiliado" value={data.affiliateName} />
+            <Metric label="Rota" value={data.routeName} />
             <Metric label="Emprestado" value={formatCurrency(loan.principal_amount)} />
+            <Metric label="Taxa" value={`${loan.interest_rate ?? 0}%`} />
+            <Metric label="Quantidade de parcelas" value={data.installments.length} />
+            <Metric label="Valor da parcela" value={formatCurrency(data.installments[0]?.amount)} />
             <Metric label="Total a receber" value={formatCurrency(loan.total_amount)} />
-            <Metric label="Pago" value={formatCurrency(loan.paid_amount)} />
-            <Metric label="Em aberto" value={formatCurrency(loan.remaining_amount)} />
+            <Metric label="Pago" value={formatCurrency(paid)} />
+            <Metric label="Em aberto" value={formatCurrency(open)} />
             <Metric label="Status" value={loan.status} status />
           </div>
 

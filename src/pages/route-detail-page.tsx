@@ -2,15 +2,32 @@ import { useCallback } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
 import { useAsyncData } from '../hooks/use-async-data'
-import { formatCurrency } from '../lib/formatters'
+import { localIsoDate } from '../lib/dates'
+import { formatCurrency, formatDate } from '../lib/formatters'
 import { supabase } from '../lib/supabase'
-import type { ClientRecord, LoanRecord, RouteRecord } from '../types/finance'
+import type { ClientRecord, InstallmentRecord, LoanRecord, RouteRecord } from '../types/finance'
 
 type RouteMember = {
   id: string
   full_name: string
   role: string
   commission_rate?: number
+}
+
+type CollectionLog = {
+  id: string
+  client_id: string
+  result: string
+  contacted_at: string
+}
+
+const emptyData = {
+  route: null as RouteRecord | null,
+  clients: [] as ClientRecord[],
+  loans: [] as LoanRecord[],
+  installments: [] as InstallmentRecord[],
+  collections: [] as CollectionLog[],
+  members: [] as RouteMember[],
 }
 
 export function RouteDetailPage() {
@@ -31,49 +48,90 @@ export function RouteDetailPage() {
     if (loans.error) throw loans.error
     if (members.error) throw members.error
     if (principalAffiliate.error) throw principalAffiliate.error
+    const loanRows = (loans.data ?? []) as LoanRecord[]
+    const clientRows = (clients.data ?? []) as ClientRecord[]
+    const [installments, collections] = await Promise.all([
+      loanRows.length ? supabase.from('installments').select('*').in('loan_id', loanRows.map((loan) => loan.id)).order('due_date') : Promise.resolve({ data: [], error: null }),
+      clientRows.length ? supabase.from('collection_logs').select('id, client_id, result, contacted_at').in('client_id', clientRows.map((client) => client.id)).order('contacted_at', { ascending: false }).limit(20) : Promise.resolve({ data: [], error: null }),
+    ])
+    if (installments.error) throw installments.error
+    if (collections.error) throw collections.error
     const routeMembers = (members.data ?? []) as RouteMember[]
     const principal = principalAffiliate.data as RouteMember | null
     return {
       route: route.data as RouteRecord,
-      clients: (clients.data ?? []) as ClientRecord[],
-      loans: (loans.data ?? []) as LoanRecord[],
+      clients: clientRows,
+      loans: loanRows,
+      installments: (installments.data ?? []) as InstallmentRecord[],
+      collections: (collections.data ?? []) as CollectionLog[],
       members: principal && !routeMembers.some((member) => member.id === principal.id) ? [principal, ...routeMembers] : routeMembers,
     }
   }, [id])
-  const { data, loading, error } = useAsyncData(loader, { route: null as RouteRecord | null, clients: [] as ClientRecord[], loans: [] as LoanRecord[], members: [] as RouteMember[] })
-  const invested = data.loans.reduce((sum, loan) => sum + loan.principal_amount, 0)
-  const receivable = data.loans.reduce((sum, loan) => sum + loan.total_amount, 0)
-  const received = data.loans.reduce((sum, loan) => sum + (loan.paid_amount ?? 0), 0)
-  const overdue = data.loans.filter((loan) => loan.status === 'overdue' || loan.status === 'defaulted').reduce((sum, loan) => sum + (loan.remaining_amount ?? 0), 0)
-  const goal = data.route?.goal_amount ?? 0
+  const { data, loading, error } = useAsyncData(loader, emptyData)
+  const today = localIsoDate()
+  const clientById = new Map(data.clients.map((client) => [client.id, client]))
+  const loanById = new Map(data.loans.map((loan) => [loan.id, loan]))
+  const openInstallments = data.installments.filter((installment) => installment.status !== 'paid' && installment.status !== 'cancelled')
+  const overdueInstallments = openInstallments.filter((installment) => installment.status === 'overdue' || installment.due_date < today)
+  const overdueClientIds = new Set(overdueInstallments.map((installment) => loanById.get(installment.loan_id)?.client_id).filter(Boolean))
+  const invested = sum(data.loans.map((loan) => loan.principal_amount))
+  const receivable = sum(data.loans.map((loan) => loan.total_amount))
+  const received = sum(data.installments.map((installment) => installment.paid_amount))
+  const overdue = sum(overdueInstallments.map((installment) => Math.max(installment.amount - installment.paid_amount, 0)))
+  const routeUrl = encodeURIComponent(id ?? '')
 
   return (
     <section className="page-stack">
       <div className="page-title-row">
         <div>
           <h1>{data.route?.name ?? 'Rota'}</h1>
-          <p>{data.route?.city ?? '-'} - {data.route?.neighborhood ?? '-'} · Dias: {formatCollectionDays(data.route?.collection_days)}</p>
+          <p>{data.route?.city ?? '-'} - {data.route?.neighborhood ?? '-'} | Dia principal: {formatCollectionDay(data.route?.main_collection_day)} | Dias: {formatCollectionDays(data.route?.collection_days)}</p>
         </div>
-        <Link className="button-link" to="/rotas">Voltar</Link>
+        <div className="button-row">
+          <Link className="button-link secondary-button" to={`/clientes?routeId=${routeUrl}`}>Ver clientes</Link>
+          <Link className="button-link secondary-button" to={`/cobrancas?routeId=${routeUrl}`}>Ver cobrancas</Link>
+          <Link className="button-link secondary-button" to={`/carteira?routeId=${routeUrl}`}>Ver financeiro</Link>
+          <Link className="button-link" to="/rotas">Voltar</Link>
+        </div>
       </div>
       {error ? <p className="form-message">{error}</p> : null}
       {loading ? <div className="skeleton-card" /> : null}
       <div className="summary-grid">
-        <Metric label="Total investido" value={formatCurrency(invested)} />
+        <Metric label="Total de clientes" value={String(data.clients.length)} />
+        <Metric label="Clientes ativos" value={String(data.clients.filter((client) => client.is_active && client.status !== 'inactive').length)} />
+        <Metric label="Clientes atrasados" value={String(overdueClientIds.size)} />
+        <Metric label="Total emprestado" value={formatCurrency(invested)} />
         <Metric label="Total a receber" value={formatCurrency(receivable)} />
         <Metric label="Total recebido" value={formatCurrency(received)} />
-        <Metric label="Total atrasado" value={formatCurrency(overdue)} />
-        <Metric label="Meta" value={formatCurrency(goal)} />
-        <Metric label="Diferenca" value={formatCurrency(received - goal)} />
+        <Metric label="Total em atraso" value={formatCurrency(overdue)} />
+        <Metric label="Parcelas pendentes" value={String(openInstallments.length)} />
+        <Metric label="Parcelas pagas" value={String(data.installments.filter((installment) => installment.status === 'paid').length)} />
+        <Metric label="Parcelas atrasadas" value={String(overdueInstallments.length)} />
       </div>
 
-      <section className="content-panel desktop-table-wrap">
-        <h2>Clientes</h2>
-        <table><thead><tr><th>Nome</th><th>Telefone</th><th>Status</th></tr></thead><tbody>{data.clients.map((client) => <tr key={client.id}><td><Link to={`/clientes/${client.id}`}>{client.name}</Link></td><td>{client.phone ?? client.whatsapp ?? '-'}</td><td>{client.status ?? '-'}</td></tr>)}</tbody></table>
+      <section className="content-panel">
+        <h2>Dados da rota</h2>
+        <p>{data.route?.description || 'Sem descricao.'}</p>
+        {data.route?.observations ? <p><strong>Observacoes:</strong> {data.route.observations}</p> : null}
       </section>
       <section className="content-panel desktop-table-wrap">
-        <h2>Vendas</h2>
-        <table><thead><tr><th>Venda</th><th>Investido</th><th>A receber</th><th>Recebido</th><th>Status</th></tr></thead><tbody>{data.loans.map((loan) => <tr key={loan.id}><td><Link to={`/vendas/${loan.id}`}>{loan.id.slice(0, 8)}</Link></td><td>{formatCurrency(loan.principal_amount)}</td><td>{formatCurrency(loan.total_amount)}</td><td>{formatCurrency(loan.paid_amount)}</td><td>{loan.status}</td></tr>)}</tbody></table>
+        <h2>Clientes</h2>
+        <table><thead><tr><th>Nome</th><th>Telefone</th><th>Status</th></tr></thead><tbody>{data.clients.map((client) => <tr key={client.id}><td><Link to={`/clientes/${client.id}`}>{client.name}</Link></td><td>{client.phone ?? client.whatsapp ?? '-'}</td><td>{overdueClientIds.has(client.id) ? 'overdue' : client.status ?? '-'}</td></tr>)}</tbody></table>
+      </section>
+      <section className="content-panel desktop-table-wrap">
+        <h2>Parcelas e cobrancas</h2>
+        <table><thead><tr><th>Cliente</th><th>Parcela</th><th>Vencimento</th><th>Valor</th><th>Recebido</th><th>Status</th></tr></thead><tbody>{data.installments.map((installment) => {
+          const client = clientById.get(loanById.get(installment.loan_id)?.client_id ?? '')
+          return <tr key={installment.id}><td>{client ? <Link to={`/clientes/${client.id}`}>{client.name}</Link> : '-'}</td><td>{installment.installment_number}</td><td>{formatDate(installment.due_date)}</td><td>{formatCurrency(installment.amount)}</td><td>{formatCurrency(installment.paid_amount)}</td><td>{overdueInstallments.includes(installment) ? 'overdue' : installment.status}</td></tr>
+        })}</tbody></table>
+      </section>
+      <section className="content-panel desktop-table-wrap">
+        <h2>Historico de cobrancas</h2>
+        <table><thead><tr><th>Cliente</th><th>Data</th><th>Resultado</th></tr></thead><tbody>{data.collections.map((collection) => <tr key={collection.id}><td>{clientById.get(collection.client_id)?.name ?? '-'}</td><td>{formatDate(collection.contacted_at)}</td><td>{collection.result}</td></tr>)}</tbody></table>
+      </section>
+      <section className="content-panel desktop-table-wrap">
+        <h2>Emprestimos</h2>
+        <table><thead><tr><th>Venda</th><th>Emprestado</th><th>A receber</th><th>Status</th></tr></thead><tbody>{data.loans.map((loan) => <tr key={loan.id}><td><Link to={`/vendas/${loan.id}`}>{loan.id.slice(0, 8)}</Link></td><td>{formatCurrency(loan.principal_amount)}</td><td>{formatCurrency(loan.total_amount)}</td><td>{loan.status}</td></tr>)}</tbody></table>
       </section>
       <section className="content-panel desktop-table-wrap">
         <h2>Afiliados vinculados</h2>
@@ -88,6 +146,15 @@ function Metric({ label, value }: { label: string; value: string }) {
 }
 
 function formatCollectionDays(days?: number[]) {
-  const labels = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sab', 'Dom']
-  return days?.length ? days.map((day) => labels[day - 1]).filter(Boolean).join(', ') : '-'
+  return days?.length ? days.map(formatCollectionDay).filter((day) => day !== '-').join(', ') : '-'
 }
+
+function formatCollectionDay(day?: number | null) {
+  return day ? WEEK_DAYS[day - 1] ?? '-' : '-'
+}
+
+function sum(values: number[]) {
+  return values.reduce((total, value) => total + (Number(value) || 0), 0)
+}
+
+const WEEK_DAYS = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sab', 'Dom']

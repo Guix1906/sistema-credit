@@ -1,7 +1,8 @@
 import { FormEvent, useState } from 'react'
 
-import { useAuth } from '../contexts/auth-context'
+import { useAuth } from '../hooks/use-auth'
 import { useAsyncData } from '../hooks/use-async-data'
+import { summarizeCashMovements } from '../lib/cash-movement-summary'
 import { downloadCsv } from '../lib/exporters'
 import { formatCurrency, formatDate, toNumber } from '../lib/formatters'
 import { createManualCashMovement, getSelectOptions, listCashMovements, reverseCashMovement } from '../services/finance-service'
@@ -25,8 +26,7 @@ export function MovementsPage() {
       && (!startDate || date >= startDate)
       && (!endDate || date <= endDate)
   })
-  const totalInflows = visibleMovements.filter((movement) => movement.type === 'inflow').reduce((sum, movement) => sum + movement.amount, 0)
-  const totalOutflows = visibleMovements.filter((movement) => movement.type === 'outflow').reduce((sum, movement) => sum + movement.amount, 0)
+  const summary = summarizeCashMovements(visibleMovements)
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -84,9 +84,9 @@ export function MovementsPage() {
       {movements.error ? <p className="form-message">{movements.error}</p> : null}
       {movements.loading ? <div className="skeleton-card" /> : null}
       <div className="summary-grid">
-        <article className="metric-card"><span>Entradas filtradas</span><strong>{formatCurrency(totalInflows)}</strong></article>
-        <article className="metric-card"><span>Saidas filtradas</span><strong>{formatCurrency(totalOutflows)}</strong></article>
-        <article className="metric-card"><span>Saldo do periodo</span><strong>{formatCurrency(totalInflows - totalOutflows)}</strong></article>
+        <article className="metric-card"><span>Entradas filtradas</span><strong>{formatCurrency(summary.inflows)}</strong></article>
+        <article className="metric-card"><span>Saidas filtradas</span><strong>{formatCurrency(summary.outflows)}</strong></article>
+        <article className="metric-card"><span>Saldo do periodo</span><strong>{formatCurrency(summary.balance)}</strong></article>
       </div>
       <section className="content-panel filter-grid-desktop">
         <input onChange={(event) => setTerm(event.target.value)} placeholder="Buscar descricao, caixa ou origem" value={term} />

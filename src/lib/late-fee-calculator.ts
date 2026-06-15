@@ -5,6 +5,8 @@ export type LateFeeInput = {
   dailyLateFeePercent: number
   dueDate: string
   paymentDate?: string
+  minDaysLate?: number
+  fixedDaysLate?: number
 }
 
 export type LateFeeResult = {
@@ -18,7 +20,8 @@ const DAY_IN_MS = 24 * 60 * 60 * 1000
 export function calculateLateFee(input: LateFeeInput): LateFeeResult {
   const paymentDate = normalizeDate(input.paymentDate ?? localIsoDate())
   const dueDate = normalizeDate(input.dueDate)
-  const daysLate = Math.max(0, Math.floor((paymentDate.getTime() - dueDate.getTime()) / DAY_IN_MS))
+  const calculatedDaysLate = Math.max(input.minDaysLate ?? 0, Math.floor((paymentDate.getTime() - dueDate.getTime()) / DAY_IN_MS))
+  const daysLate = Math.max(0, input.fixedDaysLate ?? calculatedDaysLate)
   const lateFeeAmount = roundMoney((input.remainingInstallmentAmount * input.dailyLateFeePercent * daysLate) / 100)
 
   return {
