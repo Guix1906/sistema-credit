@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
-const hasValidSupabaseUrl = isValidHttpUrl(supabaseUrl)
+const hasValidSupabaseUrl = isValidSupabaseProjectUrl(supabaseUrl)
 
 export const supabaseConfigError = getSupabaseConfigError()
 
@@ -25,20 +25,20 @@ function getSupabaseConfigError() {
   }
 
   if (!hasValidSupabaseUrl) {
-    return 'VITE_SUPABASE_URL invalida. Use somente a URL do projeto Supabase, no formato https://seu-projeto.supabase.co.'
+    return 'VITE_SUPABASE_URL invalida. Use a Project URL do Supabase, no formato https://seu-projeto.supabase.co. Nao use o link do dashboard.'
   }
 
   return ''
 }
 
-function isValidHttpUrl(value: string | undefined) {
+function isValidSupabaseProjectUrl(value: string | undefined) {
   if (!value) {
     return false
   }
 
   try {
     const url = new URL(value)
-    return url.protocol === 'http:' || url.protocol === 'https:'
+    return url.protocol === 'https:' && url.hostname.endsWith('.supabase.co')
   } catch {
     return false
   }
