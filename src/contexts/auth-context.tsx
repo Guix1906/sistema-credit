@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { AuthContext, type AuthContextValue } from './auth-context-definition'
 import { evaluateAccessWindow } from '../lib/access-window'
-import { supabase } from '../lib/supabase'
+import { supabase, supabaseConfigError } from '../lib/supabase'
 import { getAccessSettings } from '../services/access-settings-service'
 import { registerAccessBlocked } from '../services/audit-service'
 import { insertAuditLog } from '../services/finance-service'
@@ -13,6 +13,31 @@ import type { Profile } from '../types/auth'
 const AUDITED_LOGIN_USER_KEY = 'sistema-credito:audited-login-user'
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  if (supabaseConfigError) {
+    return <SupabaseConfigErrorScreen />
+  }
+
+  return <AuthProviderSession>{children}</AuthProviderSession>
+}
+
+function SupabaseConfigErrorScreen() {
+  return (
+    <main className="auth-shell">
+      <section className="login-panel">
+        <div className="login-heading">
+          <span>Configuracao pendente</span>
+          <h2>Supabase nao configurado</h2>
+        </div>
+        <p className="form-message">{supabaseConfigError}</p>
+        <p className="muted-copy">
+          Na Vercel, abra Settings, Environment Variables e cadastre as variaveis para Production. Depois faca Redeploy.
+        </p>
+      </section>
+    </main>
+  )
+}
+
+function AuthProviderSession({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [accessBlock, setAccessBlock] = useState<AccessBlockDetails | null>(null)
