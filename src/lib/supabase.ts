@@ -25,7 +25,7 @@ function getSupabaseConfigError() {
   }
 
   if (!hasValidSupabaseUrl) {
-    return 'VITE_SUPABASE_URL invalida. Use a Project URL do Supabase, no formato https://seu-projeto.supabase.co. Nao use o link do dashboard.'
+    return 'VITE_SUPABASE_URL invalida. Use somente a Project URL do Supabase, no formato https://seu-projeto.supabase.co. Nao inclua /rest/v1, /auth/v1 ou link do dashboard.'
   }
 
   return ''
@@ -38,7 +38,7 @@ function isValidSupabaseProjectUrl(value: string | undefined) {
 
   try {
     const url = new URL(value)
-    return url.protocol === 'https:' && url.hostname.endsWith('.supabase.co')
+    return url.protocol === 'https:' && url.hostname.endsWith('.supabase.co') && (url.pathname === '' || url.pathname === '/')
   } catch {
     return false
   }
