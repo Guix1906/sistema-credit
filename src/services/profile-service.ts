@@ -1,11 +1,14 @@
 import { supabase } from '../lib/supabase'
-import type { Profile } from '../types/auth'
+import { normalizeUserRole } from '../lib/roles'
+import type { Profile, UserRole } from '../types/auth'
 
 type ProfileInput = {
   id: string
   email: string
   fullName?: string
 }
+
+const INITIAL_ACCOUNT_ROLE: UserRole = 'admin'
 
 export async function getCurrentProfile(userId: string): Promise<Profile | null> {
   const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).single()
@@ -18,7 +21,8 @@ export async function getCurrentProfile(userId: string): Promise<Profile | null>
     throw error
   }
 
-  return data
+  const normalizedRole = normalizeUserRole(data.role)
+  return normalizedRole ? { ...data, role: normalizedRole } : data
 }
 
 export async function ensureCurrentProfile(input: ProfileInput): Promise<Profile> {
@@ -28,7 +32,7 @@ export async function ensureCurrentProfile(input: ProfileInput): Promise<Profile
     return currentProfile
   }
 
-  const primaryAttempt = await insertProfile(input, 'atendente')
+  const primaryAttempt = await insertProfile(input, INITIAL_ACCOUNT_ROLE)
 
   if (!primaryAttempt.error) {
     return primaryAttempt.data
@@ -37,7 +41,7 @@ export async function ensureCurrentProfile(input: ProfileInput): Promise<Profile
   throw primaryAttempt.error
 }
 
-async function insertProfile(input: ProfileInput, role: 'atendente') {
+async function insertProfile(input: ProfileInput, role: UserRole) {
   return supabase
     .from('profiles')
     .insert({

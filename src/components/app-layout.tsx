@@ -1,10 +1,11 @@
 import { Bell, ChevronDown, LogOut, Menu, Search, UserRound, X } from 'lucide-react'
 import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
+import { Navigate, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 
 import { navigationGroups, navigationItems } from '../config/navigation'
 import { useAuth } from '../hooks/use-auth'
 import { useAsyncData } from '../hooks/use-async-data'
+import { isRoleAllowed } from '../lib/roles'
 import { supabase } from '../lib/supabase'
 import { getUserDisplayName } from '../lib/user-display-name'
 
@@ -24,7 +25,7 @@ export function AppLayout() {
     [location.pathname],
   )
   const visibleGroups = useMemo(() => navigationGroups
-    .map((group) => ({ ...group, items: group.items.filter((item) => !item.roles || (profile?.role && item.roles.includes(profile.role))) }))
+    .map((group) => ({ ...group, items: group.items.filter((item) => isRoleAllowed(item.roles, profile?.role)) }))
     .filter((group) => group.items.length), [profile?.role])
   const visibleItems = useMemo(() => visibleGroups.flatMap((group) => group.items), [visibleGroups])
   const mobilePrimaryItems = visibleItems.filter((item) => mobilePrimaryPaths.has(item.path))
@@ -32,6 +33,7 @@ export function AppLayout() {
   const alerts = useAsyncData(listOpenAlerts, [] as AlertSummary[])
   const appSettingsLoader = useCallback(() => getLayoutSettings(profile?.id), [profile?.id])
   const appSettings = useAsyncData(appSettingsLoader, null)
+  const canViewCurrentRoute = isRoleAllowed(currentRoute.roles, profile?.role)
 
   useEffect(() => {
     function closeProfileMenu(event: MouseEvent) {
@@ -56,6 +58,10 @@ export function AppLayout() {
     event.preventDefault()
     const query = searchTerm.trim()
     navigate(query ? `/clientes?search=${encodeURIComponent(query)}` : '/clientes')
+  }
+
+  if (profile && !canViewCurrentRoute) {
+    return <Navigate replace to="/" />
   }
 
   return (
