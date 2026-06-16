@@ -1,5 +1,5 @@
 import { Bell, ChevronDown, LogOut, Menu, Search, UserRound, X } from 'lucide-react'
-import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Navigate, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 
 import { navigationGroups, navigationItems } from '../config/navigation'
@@ -28,12 +28,14 @@ export function AppLayout() {
     .map((group) => ({ ...group, items: group.items.filter((item) => isRoleAllowed(item.roles, profile?.role)) }))
     .filter((group) => group.items.length), [profile?.role])
   const visibleItems = useMemo(() => visibleGroups.flatMap((group) => group.items), [visibleGroups])
-  const mobilePrimaryItems = visibleItems.filter((item) => mobilePrimaryPaths.has(item.path))
+  const mobilePrimaryItems = useMemo(() => visibleItems.filter((item) => mobilePrimaryPaths.has(item.path)), [visibleItems])
   const userName = getUserDisplayName(profile, user)
-  const alerts = useAsyncData(listOpenAlerts, [] as AlertSummary[])
+  const alerts = useAsyncData(listOpenAlerts, [] as AlertSummary[], { cacheKey: 'layout:open-alerts', staleTime: 2 * 60 * 1000, gcTime: 10 * 60 * 1000 })
   const appSettingsLoader = useCallback(() => getLayoutSettings(profile?.id), [profile?.id])
-  const appSettings = useAsyncData(appSettingsLoader, null)
+  const appSettings = useAsyncData(appSettingsLoader, null, { cacheKey: profile?.id ? `layout:settings:${profile.id}` : undefined, staleTime: 10 * 60 * 1000, gcTime: 30 * 60 * 1000 })
   const canViewCurrentRoute = isRoleAllowed(currentRoute.roles, profile?.role)
+  const openDrawer = useCallback(() => setDrawerOpen(true), [])
+  const closeDrawer = useCallback(() => setDrawerOpen(false), [])
 
   useEffect(() => {
     function closeProfileMenu(event: MouseEvent) {
@@ -75,7 +77,7 @@ export function AppLayout() {
 
       <div className="main-column">
         <header className="topbar">
-          <button className="icon-button mobile-menu-button" onClick={() => setDrawerOpen(true)} type="button" aria-label="Abrir menu"><Menu size={20} /></button>
+          <button className="icon-button mobile-menu-button" onClick={openDrawer} type="button" aria-label="Abrir menu"><Menu size={20} /></button>
           <div className="route-heading"><span>Rota atual</span><strong>{currentRoute.label}</strong></div>
           <form className="topbar-search" onSubmit={submitSearch}><Search aria-hidden="true" size={18} /><input onChange={(event) => setSearchTerm(event.target.value)} placeholder="Buscar cliente, CPF ou telefone" type="search" value={searchTerm} /></form>
           <div className="topbar-actions">
@@ -117,16 +119,16 @@ export function AppLayout() {
       </div>
 
       <nav className="mobile-bottom-nav" aria-label="Menu inferior">
-        {mobilePrimaryItems.map((item) => <NavLink className="mobile-nav-item" end={item.path === '/'} key={item.path} to={item.path}><item.icon aria-hidden="true" size={20} /><span>{item.label}</span></NavLink>)}
+        <MobileBottomNavigation items={mobilePrimaryItems} />
       </nav>
 
       {drawerOpen ? (
         <div className="drawer-layer">
-          <button className="drawer-backdrop" onClick={() => setDrawerOpen(false)} type="button" aria-label="Fechar menu" />
+          <button className="drawer-backdrop" onClick={closeDrawer} type="button" aria-label="Fechar menu" />
           <aside className="drawer-panel" aria-label="Menu mobile">
-            <div className="drawer-header"><Brand logo={appSettings.data?.logo_path} name={appSettings.data?.system_name} /><button className="icon-button" onClick={() => setDrawerOpen(false)} type="button" aria-label="Fechar"><X size={20} /></button></div>
+            <div className="drawer-header"><Brand logo={appSettings.data?.logo_path} name={appSettings.data?.system_name} /><button className="icon-button" onClick={closeDrawer} type="button" aria-label="Fechar"><X size={20} /></button></div>
             <nav className="drawer-nav">
-              {visibleGroups.map((group) => <NavigationGroup key={group.label} label={group.label} items={group.items} onNavigate={() => setDrawerOpen(false)} />)}
+              {visibleGroups.map((group) => <NavigationGroup key={group.label} label={group.label} items={group.items} onNavigate={closeDrawer} />)}
             </nav>
           </aside>
         </div>
@@ -157,15 +159,23 @@ async function getLayoutSettings(ownerId?: string): Promise<{ system_name: strin
   return data as { system_name: string; logo_path: string | null } | null
 }
 
-function NavigationGroup({ label, items, onNavigate }: { label: string; items: typeof navigationItems; onNavigate?: () => void }) {
+const MobileBottomNavigation = memo(function MobileBottomNavigation({ items }: { items: typeof navigationItems }) {
+  return (
+    <>
+      {items.map((item) => <NavLink className="mobile-nav-item" end={item.path === '/'} key={item.path} to={item.path}><item.icon aria-hidden="true" size={20} /><span>{item.label}</span></NavLink>)}
+    </>
+  )
+})
+
+const NavigationGroup = memo(function NavigationGroup({ label, items, onNavigate }: { label: string; items: typeof navigationItems; onNavigate?: () => void }) {
   return (
     <section className="nav-group">
       <span className="nav-group-title">{label}</span>
       {items.map((item) => <NavLink className="nav-item" end={item.path === '/'} key={item.path} onClick={onNavigate} to={item.path}><item.icon aria-hidden="true" size={18} /><span>{item.label}</span></NavLink>)}
     </section>
   )
-}
+})
 
-function Brand({ logo, name }: { logo?: string | null; name?: string }) {
+const Brand = memo(function Brand({ logo, name }: { logo?: string | null; name?: string }) {
   return <div className="brand-block">{logo ? <img className="brand-logo" src={logo} alt="" /> : <span className="brand-mark">SC</span>}<div><strong>{name ?? 'Sistema de Credito'}</strong><span>Recebiveis</span></div></div>
-}
+})

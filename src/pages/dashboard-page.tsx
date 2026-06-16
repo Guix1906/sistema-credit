@@ -16,7 +16,11 @@ export function DashboardPage() {
   const [period, setPeriod] = useState<DashboardPeriod>('12m')
   const [referenceDate, setReferenceDate] = useState(() => localIsoDate())
   const loader = useCallback(() => getPremiumDashboardData(period, referenceDate), [period, referenceDate])
-  const { data, loading, error } = useAsyncData(loader, getDashboardFallback())
+  const { data, loading, error } = useAsyncData(loader, getDashboardFallback(), {
+    cacheKey: `dashboard:${period}:${referenceDate}`,
+    staleTime: 2 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
+  })
 
   return (
     <section className="dashboard-premium">

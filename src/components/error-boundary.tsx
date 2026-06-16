@@ -51,10 +51,10 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
             </div>
             <p className="form-message">{this.state.error.message}</p>
             <p className="muted-copy">
-              Atualize a pagina. Se continuar, envie esta mensagem de erro para suporte.
+              Tente novamente. Se continuar, envie esta mensagem de erro para suporte.
             </p>
-            <button className="primary-button" onClick={() => window.location.reload()} type="button">
-              Recarregar
+            <button className="primary-button" onClick={() => this.setState({ error: null })} type="button">
+              Tentar novamente
             </button>
           </section>
         </main>

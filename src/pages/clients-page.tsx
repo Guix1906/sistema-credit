@@ -24,9 +24,10 @@ export function ClientsPage() {
   const [message, setMessage] = useState('')
   const [clientToDelete, setClientToDelete] = useState<{ id: string; name: string } | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
-  const options = useAsyncData(getSelectOptions, { routes: [], collectors: [], cashboxes: [] })
+  const options = useAsyncData(getSelectOptions, { routes: [], collectors: [], cashboxes: [] }, { cacheKey: 'shared:select-options', staleTime: 5 * 60 * 1000, gcTime: 20 * 60 * 1000 })
   const loader = useCallback(() => listClientsWithTotals(term, { routeId, status, collectorId }), [term, routeId, status, collectorId])
-  const { data: clients, loading, error, reload } = useAsyncData(loader, [])
+  const clientsCacheKey = `clients:${term.trim().toLowerCase()}:${routeId}:${status}:${collectorId}`
+  const { data: clients, loading, error, reload } = useAsyncData(loader, [], { cacheKey: clientsCacheKey, staleTime: 90 * 1000, gcTime: 10 * 60 * 1000 })
 
   useEffect(() => {
     setTerm(searchParams.get('search') ?? '')
