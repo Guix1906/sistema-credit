@@ -178,6 +178,7 @@
     @apply bg-background text-foreground font-sans antialiased;
     margin: 0;
     min-width: 0;
+    overflow-x: hidden;
     background:
       linear-gradient(180deg, var(--background) 0%, color-mix(in oklch, var(--background) 86%, var(--surface-strong)) 100%);
     font-family: var(--font-sans);
@@ -192,6 +193,14 @@
   select,
   textarea {
     font: inherit;
+  }
+
+  button,
+  a,
+  input,
+  select,
+  textarea {
+    -webkit-tap-highlight-color: transparent;
   }
 
   a {
@@ -350,6 +359,7 @@
     @apply inline-flex min-h-11 max-w-full cursor-pointer items-center justify-center gap-2 rounded-md bg-primary px-[18px] font-bold text-primary-foreground transition disabled:cursor-not-allowed disabled:opacity-65;
     transition-duration: var(--transition-fast);
     box-shadow: 0 7px 18px color-mix(in oklch, var(--primary) 18%, transparent);
+    touch-action: manipulation;
   }
 
   button:hover:not(:disabled) {
@@ -572,7 +582,8 @@
   }
 
   .page-shell {
-    @apply mx-auto w-full max-w-[1440px] px-4 py-6 pb-28 sm:px-6 lg:px-8 lg:pb-9;
+    @apply mx-auto w-full max-w-[1440px] px-4 py-6 sm:px-6 lg:px-8 lg:pb-9;
+    padding-bottom: calc(7rem + env(safe-area-inset-bottom, 0px));
   }
 
   .page-stack {
@@ -883,10 +894,12 @@
   .secondary-button,
   .button-link {
     @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-border bg-card px-[18px] font-bold text-foreground shadow-none transition hover:bg-accent hover:text-accent-foreground;
+    touch-action: manipulation;
   }
 
   .destructive-button {
     @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-destructive/25 bg-destructive/10 px-[18px] font-bold text-destructive shadow-none transition hover:bg-destructive hover:text-destructive-foreground;
+    touch-action: manipulation;
   }
 
   .compact-actions .destructive-button {
@@ -1041,12 +1054,77 @@
     @apply grid gap-3 p-3 sm:gap-4 sm:p-5;
   }
 
+  .billing-daily-tabs {
+    @apply grid grid-cols-2 gap-2 sm:grid-cols-5;
+  }
+
+  .billing-daily-tabs button {
+    @apply min-h-11 rounded-md border border-border bg-background px-2 text-xs font-extrabold text-muted-foreground shadow-none hover:bg-accent hover:text-accent-foreground;
+  }
+
+  .billing-daily-tabs button.active {
+    @apply border-primary/25 bg-primary/10 text-primary;
+  }
+
   .billing-period-control {
-    @apply grid-cols-3 sm:grid-cols-3 xl:grid-cols-6;
+    @apply grid-cols-2 sm:grid-cols-4 xl:grid-cols-7;
   }
 
   .billing-period-control button {
     @apply px-2 text-xs sm:text-sm;
+  }
+
+  .billing-color-legend {
+    @apply flex flex-wrap gap-x-3 gap-y-2 rounded-md border border-border bg-background px-3 py-2 text-xs font-extrabold text-muted-foreground;
+  }
+
+  .billing-color-legend span,
+  .billing-card-meta span {
+    @apply inline-flex items-center gap-1.5;
+  }
+
+  .billing-color-legend i {
+    @apply size-2.5 rounded-full;
+  }
+
+  .legend-renewed {
+    background: var(--dashboard-blue);
+  }
+
+  .legend-finishing {
+    background: var(--dashboard-amber);
+  }
+
+  .legend-overdue {
+    background: var(--dashboard-red);
+  }
+
+  .legend-current {
+    background: oklch(0.58 0.16 148);
+  }
+
+  .billing-settlement-filters {
+    @apply grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6;
+  }
+
+  .billing-settlement-filters button {
+    @apply min-h-11 rounded-md border border-border bg-background px-2 text-xs font-extrabold text-muted-foreground shadow-none hover:bg-accent hover:text-accent-foreground;
+  }
+
+  .billing-settlement-filters button.active {
+    @apply border-primary/25 bg-primary/10 text-primary;
+  }
+
+  .billing-search-field {
+    @apply grid min-h-12 grid-cols-[auto_1fr] items-center gap-2 rounded-md border border-input bg-background px-3 text-muted-foreground transition focus-within:border-ring;
+  }
+
+  .billing-search-field:focus-within {
+    box-shadow: var(--focus-shadow);
+  }
+
+  .billing-search-field input {
+    @apply min-h-0 border-0 bg-transparent px-0 shadow-none;
   }
 
   .billing-quick-filters {
@@ -1168,32 +1246,172 @@
     @apply gap-3 p-4;
   }
 
-  .billing-card-heading {
-    @apply flex flex-wrap items-start justify-between gap-2;
+  .billing-client-card {
+    --card-tone: var(--dashboard-blue);
+    --card-tone-soft: var(--dashboard-blue-soft);
+    @apply min-w-0 overflow-hidden rounded-lg border border-border bg-card shadow-sm transition;
   }
 
-  .billing-card-heading > div {
-    @apply grid min-w-0 gap-1;
+  .billing-client-card:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 16px 36px hsl(220 35% 18% / 0.08);
   }
 
-  .billing-card-heading strong {
-    @apply text-base leading-tight;
+  .billing-client-card:active {
+    transform: scale(0.997);
   }
 
-  .billing-card-heading small {
-    @apply text-xs leading-5;
+  .billing-client-card.card-normal {
+    --card-tone: var(--dashboard-blue);
+    --card-tone-soft: var(--dashboard-blue-soft);
   }
 
-  .billing-card-main {
-    @apply grid gap-1 rounded-md border border-border bg-background p-3;
+  .billing-client-card.card-warning {
+    --card-tone: var(--dashboard-amber);
+    --card-tone-soft: var(--dashboard-amber-soft);
   }
 
-  .billing-card-main strong {
-    @apply text-2xl font-black leading-tight text-foreground;
+  .billing-client-card.card-overdue {
+    --card-tone: var(--dashboard-red);
+    --card-tone-soft: var(--dashboard-red-soft);
   }
 
-  .billing-card-main span {
+  .billing-client-card.card-paid {
+    --card-tone: oklch(0.58 0.16 148);
+    --card-tone-soft: color-mix(in oklch, oklch(0.58 0.16 148) 10%, white);
+  }
+
+  .billing-client-card.card-inactive {
+    --card-tone: var(--muted-foreground);
+    --card-tone-soft: var(--muted);
+  }
+
+  .settlement-renewed {
+    --settlement-color: var(--dashboard-blue);
+    --settlement-soft: var(--dashboard-blue-soft);
+    --settlement-text: var(--dashboard-blue);
+  }
+
+  .settlement-finishing {
+    --settlement-color: var(--dashboard-amber);
+    --settlement-soft: var(--dashboard-amber-soft);
+    --settlement-text: color-mix(in oklch, var(--dashboard-amber) 78%, black);
+  }
+
+  .settlement-overdue {
+    --settlement-color: var(--dashboard-red);
+    --settlement-soft: var(--dashboard-red-soft);
+    --settlement-text: var(--dashboard-red);
+  }
+
+  .settlement-current,
+  .settlement-renewed {
+    --settlement-color: var(--dashboard-blue);
+    --settlement-soft: var(--dashboard-blue-soft);
+    --settlement-text: var(--dashboard-blue);
+  }
+
+  .settlement-paid {
+    --settlement-color: oklch(0.58 0.16 148);
+    --settlement-soft: color-mix(in oklch, oklch(0.58 0.16 148) 10%, white);
+    --settlement-text: oklch(0.45 0.14 148);
+  }
+
+  .settlement-inactive {
+    --settlement-color: var(--muted-foreground);
+    --settlement-soft: var(--muted);
+    --settlement-text: var(--muted-foreground);
+  }
+
+  .settlement-badge {
+    @apply inline-flex min-h-8 shrink-0 items-center rounded-md border px-2.5 py-1 text-xs font-black;
+    border-color: color-mix(in oklch, var(--settlement-color) 24%, transparent);
+    background: var(--settlement-soft);
+    color: var(--settlement-text);
+    white-space: nowrap;
+  }
+
+  .billing-client-card-header {
+    @apply grid min-w-0 grid-cols-[auto_1fr_auto] items-center gap-3 p-3 text-white;
+    background: var(--card-tone);
+  }
+
+  .billing-client-avatar {
+    @apply grid size-11 shrink-0 place-items-center rounded-md bg-white/18 text-white;
+  }
+
+  .billing-client-card-header div:not(.billing-client-avatar) {
+    @apply min-w-0;
+  }
+
+  .billing-client-card-header strong,
+  .billing-client-card-header span {
+    @apply block min-w-0 truncate;
+  }
+
+  .billing-client-card-header strong {
+    @apply text-base font-black leading-tight text-white;
+  }
+
+  .billing-client-card-header span {
+    @apply mt-0.5 text-xs font-bold text-white/80;
+  }
+
+  .billing-client-card-header .settlement-badge {
+    @apply border-white/20 bg-white/18 text-white;
+  }
+
+  .billing-client-card-body {
+    @apply grid gap-3 bg-card p-3;
+  }
+
+  .billing-info-grid {
+    @apply grid grid-cols-2 gap-2;
+  }
+
+  .billing-info-grid div {
+    @apply grid min-h-[70px] content-center gap-1 rounded-md border border-border bg-background p-2.5;
+  }
+
+  .billing-info-grid span {
     @apply text-xs font-bold text-muted-foreground;
+  }
+
+  .billing-info-grid strong {
+    @apply text-base font-black leading-tight text-foreground;
+  }
+
+  .billing-info-grid .danger strong {
+    @apply text-destructive;
+  }
+
+  .billing-card-payment {
+    @apply grid grid-cols-2 gap-2;
+  }
+
+  .billing-card-payment label {
+    @apply gap-1.5 text-xs font-extrabold text-muted-foreground;
+  }
+
+  .billing-card-payment input {
+    @apply min-h-11 px-3 text-sm font-bold text-foreground;
+  }
+
+  .billing-card-note {
+    @apply col-span-2;
+  }
+
+  .billing-card-action-row {
+    @apply grid grid-cols-2 gap-2;
+  }
+
+  .billing-card-action-row button,
+  .billing-card-action-row a {
+    @apply min-h-12 px-2 text-xs;
+  }
+
+  .billing-card-action-row .billing-details-button {
+    @apply col-span-2;
   }
 
   .billing-card-meta {
@@ -1202,6 +1420,58 @@
 
   .billing-card-meta span {
     @apply rounded-md bg-muted px-2 py-1 text-xs font-bold text-muted-foreground;
+  }
+
+  .billing-overdue-warning {
+    @apply rounded-md border border-destructive/25 bg-destructive/10 px-3 py-2 text-sm font-black text-destructive;
+  }
+
+  .billing-expanded-details {
+    @apply grid gap-3 overflow-hidden rounded-md border border-border bg-background p-0;
+    max-height: 0;
+    opacity: 0;
+    border-width: 0;
+    transition: max-height var(--transition-normal), opacity var(--transition-normal), padding var(--transition-normal), border-width var(--transition-fast);
+  }
+
+  .billing-expanded-details.open {
+    @apply border p-3;
+    max-height: 720px;
+    opacity: 1;
+  }
+
+  .billing-detail-grid {
+    @apply grid gap-2;
+  }
+
+  .billing-detail-grid div {
+    @apply grid gap-1 rounded-md bg-card p-2.5;
+  }
+
+  .billing-detail-grid span,
+  .billing-history-inline span {
+    @apply text-xs font-bold text-muted-foreground;
+  }
+
+  .billing-detail-grid strong {
+    @apply text-sm font-extrabold text-foreground;
+  }
+
+  .billing-history-inline {
+    @apply grid gap-1 rounded-md border border-border bg-card p-2.5;
+  }
+
+  .billing-history-inline > strong {
+    @apply text-sm font-black text-foreground;
+  }
+
+  .billing-expanded-actions {
+    @apply grid grid-cols-2 gap-2;
+  }
+
+  .billing-expanded-actions button,
+  .billing-expanded-actions a {
+    @apply min-h-11 px-2 text-xs;
   }
 
   .billing-actions {
@@ -1213,7 +1483,19 @@
   }
 
   .billing-primary-actions .secondary-button {
-    @apply min-h-10 px-2 text-xs;
+    @apply min-h-12 px-2 text-xs;
+    white-space: normal;
+  }
+
+  .billing-pay-button {
+    border-color: color-mix(in oklch, oklch(0.58 0.16 148) 26%, transparent);
+    background: color-mix(in oklch, oklch(0.58 0.16 148) 14%, white);
+    color: oklch(0.42 0.13 148);
+    box-shadow: none;
+  }
+
+  .billing-no-pay-button {
+    @apply border-destructive/20 bg-destructive/10 text-destructive;
   }
 
   .billing-more-actions {
@@ -1249,6 +1531,21 @@
   .billing-history-list span,
   .billing-history-list small {
     @apply text-sm text-muted-foreground;
+  }
+
+  .billing-skeleton-list {
+    @apply grid gap-3 lg:hidden;
+  }
+
+  .billing-card-skeleton {
+    @apply h-[360px] rounded-lg border border-border bg-muted;
+    background: linear-gradient(90deg, var(--muted) 0%, var(--surface) 45%, var(--muted) 90%);
+    background-size: 220% 100%;
+    animation: skeleton-shimmer 1.3s ease-in-out infinite;
+  }
+
+  .billing-error-state {
+    @apply flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between;
   }
 
   .mobile-card-list {
@@ -1390,11 +1687,14 @@
   }
 
   .mobile-bottom-nav {
-    @apply fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-border bg-card/95 px-2 py-2 shadow-lg backdrop-blur-xl lg:hidden;
+    @apply fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-border bg-card/95 px-2 pt-2 shadow-lg backdrop-blur-xl lg:hidden;
+    padding-bottom: calc(0.5rem + env(safe-area-inset-bottom, 0px));
+    transform: translateZ(0);
   }
 
   .mobile-nav-item {
     @apply grid min-h-[58px] place-items-center gap-1 rounded-md px-1 text-center text-[0.68rem] font-bold text-muted-foreground transition;
+    touch-action: manipulation;
   }
 
   .mobile-nav-item.active {
@@ -1411,6 +1711,8 @@
 
   .drawer-panel {
     @apply absolute inset-y-0 left-0 z-10 grid w-[min(88vw,340px)] grid-rows-[auto_1fr] border-r border-sidebar-border bg-sidebar p-4 text-sidebar-foreground shadow-2xl;
+    max-height: 100dvh;
+    padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
     animation: drawer-in var(--transition-normal);
   }
 
@@ -1962,6 +2264,7 @@
 
   .modal-panel {
     @apply relative z-[61] grid max-h-[calc(100vh-32px)] w-full max-w-[620px] gap-4 overflow-auto rounded-lg border border-border bg-card p-5 text-card-foreground shadow-xl;
+    max-height: calc(100dvh - 32px - env(safe-area-inset-bottom, 0px));
     animation: panel-in var(--transition-normal);
   }
 
@@ -2093,6 +2396,7 @@
 @media (max-width: 639px) {
   .topbar {
     @apply min-h-[64px] gap-2 px-3;
+    backdrop-filter: none;
   }
 
   .route-heading {
@@ -2116,7 +2420,8 @@
   }
 
   .page-shell {
-    @apply px-3 py-4 pb-24;
+    @apply px-3 py-4;
+    padding-bottom: calc(6.5rem + env(safe-area-inset-bottom, 0px));
   }
 
   .page-stack,
@@ -2162,6 +2467,7 @@
   .button-row:not(.compact-actions) > button,
   .button-row:not(.compact-actions) > a {
     @apply max-w-full;
+    min-width: min(100%, 44px);
   }
 
   .desktop-table-wrap {
@@ -2185,11 +2491,23 @@
   }
 
   .mobile-bottom-nav {
-    @apply px-1 py-1.5;
+    @apply px-1 pt-1.5;
+    padding-bottom: calc(0.375rem + env(safe-area-inset-bottom, 0px));
+    backdrop-filter: none;
   }
 
   .mobile-nav-item {
     @apply min-h-[54px] text-[0.62rem];
+  }
+
+  .modal-layer {
+    @apply p-3;
+    padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  .modal-panel {
+    @apply p-4;
+    max-height: calc(100dvh - 24px - env(safe-area-inset-bottom, 0px));
   }
 }
 

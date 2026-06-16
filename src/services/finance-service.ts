@@ -8,6 +8,12 @@ import type { CashboxRecord, ClientRecord, InstallmentRecord, LoanRecord, RouteR
 const activeCollectorRoles = ['admin', 'gerente', 'manager', 'afiliado', 'cobrador', 'collector']
 const registeredAffiliateRoles = ['admin', 'gerente', 'manager', 'afiliado', 'cobrador', 'collector']
 const profileOptionColumns = 'id, full_name, email, role, phone, cpf, route_id, commission_rate, permissions, is_active, created_at, updated_at'
+const clientListColumns = 'id, owner_id, route_id, affiliate_id, name, document_number, rg, phone, whatsapp, email, address, neighborhood, city, state, postal_code, reference_point, notes, status, is_active'
+const loanListColumns = 'id, owner_id, client_id, route_id, collector_id, principal_amount, interest_amount, total_amount, paid_amount, remaining_amount, issued_at, first_due_date, final_due_date, payment_frequency, term_days, interest_rate, status, notes'
+const installmentListColumns = 'id, owner_id, loan_id, installment_number, due_date, amount, paid_amount, status, paid_at'
+const receivableListColumns = 'id, owner_id, client_id, description, amount, paid_amount, due_date, payment_method, status, notes, responsible_id, last_billing_at, next_action, recurrence, paid_at, created_at, updated_at'
+const billingHistoryListColumns = 'id, owner_id, client_id, loan_id, installment_id, receivable_id, previous_status, new_status, note, responsible_id, channel, created_at'
+const recentPaymentColumns = 'id, installment_id, loan_id, client_id, amount, late_fee_amount, paid_at, payment_method, notes'
 
 export type DashboardMetrics = {
   totalInvested: number
@@ -148,11 +154,30 @@ export type DailyBillingRow = {
   clientId: string
   loanId: string | null
   installmentId: string | null
+  routeId: string | null
+  routeName: string | null
   clientName: string
+  clientCode: string
+  clientAddress: string | null
+  clientNeighborhood: string | null
+  clientCity: string | null
+  clientReferencePoint: string | null
   description: string
+  installmentNumber: number | null
+  totalInstallments: number
+  paidInstallments: number
+  pendingInstallments: number
   amount: number
   paidAmount: number
+  loanTotalAmount: number
+  loanPaidAmount: number
+  loanRemainingAmount: number
+  appliedLateFeeAmount: number
   dueDate: string
+  loanIssuedAt: string | null
+  loanFinalDueDate: string | null
+  loanStatus: LoanRecord['status'] | null
+  loanNotes: string | null
   paymentMethod: string
   status: BillingStatus
   phone: string | null
@@ -176,6 +201,14 @@ export type ReceivableInput = {
   notes?: string
   responsibleId?: string
   recurrence?: string
+}
+
+export type DailyBillingPaymentInput = {
+  amountPaid?: number
+  installmentQuantity?: number
+  paymentMethod?: string
+  notes?: string
+  dailyLateFeePercent: number
 }
 
 export async function getSelectOptions(): Promise<SelectOptionRecord> {
@@ -266,7 +299,7 @@ export async function getWalletFilterOptions(): Promise<WalletFilterOptions> {
 }
 
 export async function searchClients(term = '', filters: { routeId?: string; collectorId?: string; activeOnly?: boolean } = {}): Promise<ClientRecord[]> {
-  let query = supabase.from('clients').select('id, owner_id, route_id, affiliate_id, name, document_number, rg, phone, whatsapp, email, address, neighborhood, city, state, postal_code, reference_point, notes, status, is_active').order('name').limit(30)
+  let query = supabase.from('clients').select(clientListColumns).order('name').limit(30)
   const safeTerm = term.trim().replace(/[,%()]/g, '')
   if (safeTerm) {
     const digits = safeTerm.replace(/\D/g, '')
@@ -346,11 +379,11 @@ export async function listClientsWithTotals(term = '', filters: { routeId?: stri
   const [routes, affiliates, loans] = await Promise.all([
     listRoutes(),
     listCollectors(),
-    supabase.from('loans').select('*').in('client_id', clients.map((client) => client.id)),
+    supabase.from('loans').select('id, client_id, total_amount, status').in('client_id', clients.map((client) => client.id)),
   ])
   if (loans.error) throw loans.error
   const loanRows = (loans.data ?? []) as LoanRecord[]
-  const installments = loanRows.length ? await supabase.from('installments').select('*').in('loan_id', loanRows.map((loan) => loan.id)) : { data: [], error: null }
+  const installments = loanRows.length ? await supabase.from('installments').select('loan_id, paid_amount').in('loan_id', loanRows.map((loan) => loan.id)) : { data: [], error: null }
   if (installments.error) throw installments.error
   const routeById = new Map(routes.map((route) => [route.id, route.name]))
   const affiliateById = new Map(affiliates.map((affiliate) => [affiliate.id, affiliate.full_name]))
@@ -625,7 +658,7 @@ async function fetchInstallmentsForQueue(includePaid: boolean): Promise<Enriched
 }
 
 export async function listRecentPayments(): Promise<RecentPaymentRecord[]> {
-  const { data, error } = await supabase.from('payments').select('*').order('paid_at', { ascending: false }).limit(30)
+  const { data, error } = await supabase.from('payments').select(recentPaymentColumns).order('paid_at', { ascending: false }).limit(30)
   if (error) throw error
   const payments = (data ?? []) as RecentPaymentRecord[]
   const clientIds = [...new Set(payments.map((payment) => payment.client_id))]
@@ -645,13 +678,22 @@ export async function listRecentPayments(): Promise<RecentPaymentRecord[]> {
 
 export async function listDailyBillingRows(): Promise<DailyBillingRow[]> {
   await refreshOverdueAlerts()
-  const [installments, receivables, collectors] = await Promise.all([
+  const [installments, receivables, collectors, routes] = await Promise.all([
     fetchCollectionInstallments(),
     fetchReceivables(),
     listCollectors(),
+    listRoutes(),
   ])
   const histories = await fetchBillingHistory()
   const collectorById = new Map(collectors.map((collector) => [collector.id, collector.full_name]))
+  const routeById = new Map(routes.map((route) => [route.id, route.name]))
+  const installmentLateFees = await fetchLateFeesByInstallmentIds(installments.map((installment) => installment.id))
+  const installmentsByLoanId = new Map<string, EnrichedInstallment[]>()
+  for (const installment of installments) {
+    const loanInstallments = installmentsByLoanId.get(installment.loan_id) ?? []
+    loanInstallments.push(installment)
+    installmentsByLoanId.set(installment.loan_id, loanInstallments)
+  }
 
   const rowsFromInstallments: DailyBillingRow[] = installments
     .filter((installment) => installment.client)
@@ -663,6 +705,11 @@ export async function listDailyBillingRows(): Promise<DailyBillingRow[]> {
       const baseStatus = resolveInstallmentBillingStatus(installment)
       const status = latestHistory && shouldUseHistoryStatus(baseStatus, latestHistory.new_status) ? latestHistory.new_status : baseStatus
       const responsibleId = loan?.collector_id ?? client.affiliate_id ?? null
+      const loanInstallments = installmentsByLoanId.get(installment.loan_id) ?? [installment]
+      const paidInstallments = loanInstallments.filter((item) => item.status === 'paid' || item.paid_amount >= item.amount).length
+      const pendingInstallments = loanInstallments.filter((item) => item.status !== 'paid' && item.paid_amount < item.amount).length
+      const loanPaidAmount = sum(loanInstallments.map((item) => item.paid_amount))
+      const loanTotalAmount = loan?.total_amount ?? sum(loanInstallments.map((item) => item.amount))
       return {
         id: `installment:${installment.id}`,
         source: 'installment',
@@ -671,11 +718,30 @@ export async function listDailyBillingRows(): Promise<DailyBillingRow[]> {
         clientId: client.id,
         loanId: loan?.id ?? installment.loan_id,
         installmentId: installment.id,
+        routeId: loan?.route_id ?? client.route_id ?? null,
+        routeName: (loan?.route_id ? routeById.get(loan.route_id) : client.route_id ? routeById.get(client.route_id) : null) ?? null,
         clientName: client.name,
+        clientCode: client.document_number || client.id.slice(0, 8),
+        clientAddress: client.address,
+        clientNeighborhood: client.neighborhood ?? null,
+        clientCity: client.city,
+        clientReferencePoint: client.reference_point ?? null,
+        installmentNumber: installment.installment_number,
+        totalInstallments: loanInstallments.length,
+        paidInstallments,
+        pendingInstallments,
         description: `Parcela ${installment.installment_number}${loan ? ` da venda ${loan.id.slice(0, 8)}` : ''}`,
         amount: installment.amount,
         paidAmount: installment.paid_amount,
+        loanTotalAmount,
+        loanPaidAmount,
+        loanRemainingAmount: loan?.remaining_amount ?? Math.max(loanTotalAmount - loanPaidAmount, 0),
+        appliedLateFeeAmount: installmentLateFees.get(installment.id) ?? 0,
         dueDate: installment.due_date,
+        loanIssuedAt: loan?.issued_at ?? null,
+        loanFinalDueDate: loan?.final_due_date ?? null,
+        loanStatus: loan?.status ?? null,
+        loanNotes: loan?.notes ?? null,
         paymentMethod: 'cash',
         status,
         phone: client.whatsapp ?? client.phone,
@@ -704,11 +770,30 @@ export async function listDailyBillingRows(): Promise<DailyBillingRow[]> {
       clientId: receivable.client_id,
       loanId: null,
       installmentId: null,
+      routeId: client?.route_id ?? null,
+      routeName: (client?.route_id ? routeById.get(client.route_id) : null) ?? null,
       clientName: client?.name ?? 'Cliente',
+      clientCode: client?.document_number || receivable.client_id.slice(0, 8),
+      clientAddress: client?.address ?? null,
+      clientNeighborhood: client?.neighborhood ?? null,
+      clientCity: client?.city ?? null,
+      clientReferencePoint: client?.reference_point ?? null,
+      installmentNumber: null,
+      totalInstallments: 1,
+      paidInstallments: receivable.status === 'pago' || receivable.paid_amount >= receivable.amount ? 1 : 0,
+      pendingInstallments: receivable.status === 'pago' || receivable.paid_amount >= receivable.amount ? 0 : 1,
       description: receivable.description,
       amount: receivable.amount,
       paidAmount: receivable.paid_amount,
+      loanTotalAmount: receivable.amount,
+      loanPaidAmount: receivable.paid_amount,
+      loanRemainingAmount: Math.max(receivable.amount - receivable.paid_amount, 0),
+      appliedLateFeeAmount: 0,
       dueDate: receivable.due_date,
+      loanIssuedAt: receivable.created_at?.slice(0, 10) ?? null,
+      loanFinalDueDate: receivable.due_date,
+      loanStatus: null,
+      loanNotes: receivable.notes,
       paymentMethod: receivable.payment_method,
       status: receivable.status,
       phone: client?.whatsapp ?? client?.phone ?? null,
@@ -775,6 +860,70 @@ export async function deleteReceivable(profile: Profile, receivableId: string): 
   const { error } = await supabase.from('receivables').delete().eq('id', receivableId)
   if (error) throw error
   await insertAuditLog(profile, 'receivables', receivableId, 'delete', current, null)
+}
+
+export async function registerDailyBillingPayment(profile: Profile, row: DailyBillingRow, input: DailyBillingPaymentInput): Promise<void> {
+  const requestedQuantity = Math.max(0, Math.floor(input.installmentQuantity ?? 0))
+  const normalizedPaymentMethod = normalizePaymentMethod(input.paymentMethod || row.paymentMethod)
+  const note = input.notes?.trim() || 'Pagamento registrado pela tela Cobrancas.'
+  let historyStatus: BillingStatus = 'pago'
+
+  if (row.source === 'installment') {
+    if (!row.loanId) throw new Error('Contrato nao encontrado para registrar o pagamento.')
+    const openInstallments = (await fetchInstallmentsByLoanIds([row.loanId]))
+      .filter((installment) => installment.status !== 'paid' && installment.status !== 'cancelled' && installment.paid_amount < installment.amount)
+      .sort((a, b) => a.installment_number - b.installment_number)
+    if (!openInstallments.length) throw new Error('Nao ha parcelas abertas para este cliente.')
+
+    const targetInstallments = requestedQuantity > 0 ? openInstallments.slice(0, requestedQuantity) : openInstallments
+    const amountFromQuantity = requestedQuantity > 0 ? sum(targetInstallments.map((installment) => Math.max(installment.amount - installment.paid_amount, 0))) : 0
+    let remainingBudget = roundMoney(input.amountPaid && input.amountPaid > 0 ? input.amountPaid : amountFromQuantity)
+    if (!(remainingBudget > 0)) throw new Error('Informe um valor pago ou uma quantidade de parcelas maior que zero.')
+    const targetTotal = sum(targetInstallments.map((installment) => Math.max(installment.amount - installment.paid_amount, 0)))
+    historyStatus = remainingBudget >= targetTotal ? 'pago' : 'parcialmente_pago'
+
+    for (const installment of targetInstallments) {
+      if (remainingBudget <= 0) break
+      const installmentRemaining = roundMoney(Math.max(installment.amount - installment.paid_amount, 0))
+      const amountPaid = Math.min(installmentRemaining, remainingBudget)
+      if (amountPaid <= 0) continue
+      await registerPayment(profile, {
+        installmentId: installment.id,
+        amountPaid,
+        paymentDate: localIsoDate(),
+        paymentMethod: normalizedPaymentMethod,
+        notes: note,
+        dailyLateFeePercent: input.dailyLateFeePercent,
+        applyLateFee: input.dailyLateFeePercent > 0,
+      })
+      remainingBudget = roundMoney(remainingBudget - amountPaid)
+    }
+  } else {
+    const { data: current, error: currentError } = await supabase.from('receivables').select(receivableListColumns).eq('id', row.sourceId).single()
+    if (currentError) throw currentError
+    const receivable = current as ReceivableRecord
+    const amountPaid = roundMoney(input.amountPaid && input.amountPaid > 0 ? input.amountPaid : Math.max(receivable.amount - receivable.paid_amount, 0))
+    if (!(amountPaid > 0)) throw new Error('Informe um valor pago maior que zero.')
+    const nextPaidAmount = roundMoney(Math.min(receivable.amount, receivable.paid_amount + amountPaid))
+    const nextStatus: BillingStatus = nextPaidAmount >= receivable.amount ? 'pago' : 'parcialmente_pago'
+    historyStatus = nextStatus
+    const payload: Partial<ReceivableRecord> = {
+      paid_amount: nextPaidAmount,
+      paid_at: nextStatus === 'pago' ? localIsoDate() : receivable.paid_at,
+      status: nextStatus,
+      notes: note || receivable.notes,
+    }
+    const { error } = await supabase.from('receivables').update(payload).eq('id', row.sourceId)
+    if (error) throw error
+    await insertAuditLog(profile, 'receivables', row.sourceId, 'update', receivable, payload)
+  }
+
+  await createBillingHistory(profile, row, {
+    previousStatus: row.status,
+    newStatus: historyStatus,
+    note,
+    channel: 'in_person',
+  })
 }
 
 export async function updateDailyBillingStatus(profile: Profile, row: DailyBillingRow, input: {
@@ -1126,7 +1275,7 @@ async function applyCashMovement(profile: Profile, input: {
 }
 
 async function fetchReceivables(): Promise<ReceivableRecord[]> {
-  const { data, error } = await supabase.from('receivables').select('*').order('due_date', { ascending: true }).limit(1000)
+  const { data, error } = await supabase.from('receivables').select(receivableListColumns).order('due_date', { ascending: true }).limit(1000)
   if (error) {
     if (isMissingTable(error)) return []
     throw error
@@ -1135,12 +1284,24 @@ async function fetchReceivables(): Promise<ReceivableRecord[]> {
 }
 
 async function fetchBillingHistory(): Promise<BillingHistoryRecord[]> {
-  const { data, error } = await supabase.from('billing_history').select('*').order('created_at', { ascending: false }).limit(3000)
+  const { data, error } = await supabase.from('billing_history').select(billingHistoryListColumns).order('created_at', { ascending: false }).limit(1500)
   if (error) {
     if (isMissingTable(error)) return []
     throw error
   }
   return (data ?? []) as BillingHistoryRecord[]
+}
+
+async function fetchLateFeesByInstallmentIds(installmentIds: string[]): Promise<Map<string, number>> {
+  if (!installmentIds.length) return new Map()
+  const { data, error } = await supabase.from('payments').select('installment_id, late_fee_amount').in('installment_id', installmentIds)
+  if (error) throw error
+  const lateFeeByInstallment = new Map<string, number>()
+  for (const payment of data ?? []) {
+    if (!payment.installment_id) continue
+    lateFeeByInstallment.set(payment.installment_id, roundMoney((lateFeeByInstallment.get(payment.installment_id) ?? 0) + Number(payment.late_fee_amount || 0)))
+  }
+  return lateFeeByInstallment
 }
 
 function resolveInstallmentBillingStatus(installment: InstallmentRecord): BillingStatus {
@@ -1175,25 +1336,25 @@ function normalizePaymentMethod(paymentMethod: string): string {
 }
 
 async function fetchClientsByIds(ids: string[]): Promise<ClientRecord[]> {
-  const { data, error } = await supabase.from('clients').select('id, owner_id, route_id, affiliate_id, name, document_number, rg, phone, whatsapp, email, address, neighborhood, city, state, postal_code, reference_point, notes, status, is_active').in('id', ids)
+  const { data, error } = await supabase.from('clients').select(clientListColumns).in('id', ids)
   if (error) throw error
   return (data ?? []) as ClientRecord[]
 }
 
 async function fetchLoansByIds(ids: string[]): Promise<LoanRecord[]> {
-  const { data, error } = await supabase.from('loans').select('*').in('id', ids)
+  const { data, error } = await supabase.from('loans').select(loanListColumns).in('id', ids)
   if (error) throw error
   return (data ?? []) as LoanRecord[]
 }
 
 async function fetchInstallmentsByLoanIds(ids: string[]): Promise<InstallmentRecord[]> {
-  const { data, error } = await supabase.from('installments').select('*').in('loan_id', ids)
+  const { data, error } = await supabase.from('installments').select(installmentListColumns).in('loan_id', ids)
   if (error) throw error
   return (data ?? []) as InstallmentRecord[]
 }
 
 async function fetchInstallmentsByIds(ids: string[]): Promise<InstallmentRecord[]> {
-  const { data, error } = await supabase.from('installments').select('*').in('id', ids)
+  const { data, error } = await supabase.from('installments').select(installmentListColumns).in('id', ids)
   if (error) throw error
   return (data ?? []) as InstallmentRecord[]
 }
